@@ -3,7 +3,7 @@
 from http.client import HTTPConnection, HTTPException
 import socket
 
-from lib import KothContext, Mumble, Offline, koth_checker
+from lib import KothContext, Mumble, Offline, checker, run_koth_checker
 
 
 REQUEST_TIMEOUT_SECONDS = 3
@@ -37,11 +37,18 @@ def http_get(context: KothContext, path: str) -> str:
         raise Mumble("the service response was not UTF-8") from error
 
 
-@koth_checker
-def check(context: KothContext) -> None:
+@checker
+def check_health(context: KothContext) -> None:
     if http_get(context, "/health") != "ok":
         raise Mumble("the health endpoint did not return ok")
 
 
+@checker
+def check_banner(context: KothContext) -> None:
+    expected_banner = "rsctf KotH demo: submit your token at /claim?token=..."
+    if http_get(context, "/") != expected_banner:
+        raise Mumble("the public hill banner was incorrect")
+
+
 if __name__ == "__main__":
-    raise SystemExit(check())
+    raise SystemExit(run_koth_checker())

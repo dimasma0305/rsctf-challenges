@@ -118,14 +118,35 @@ independent node-local daemons need a prebuilt immutable registry image instead.
 | `sshRequiresFlag` | `false` | Persisted but not currently enforced by SSH authorization; omit it from runnable templates |
 | `selfHosted` | `false` | `true` selects BYOC and is valid only for `AttackDefense` |
 
-Put a dependency-free `checker/` directory beside every A&D or KotH manifest.
-Copy both `lib.py` and `run.py` from the closest example: `lib.py` supplies the
-protocol-neutral contexts, verdicts, and `@ad_checker`/`@koth_checker` wrappers.
-`run.py` owns the challenge protocol and its assertions, whether that means
-HTTP, raw TCP, a binary packet format, or another service-specific TCP exchange.
-The importer detects `run.py` and prepares the complete local source directory
-for the checker sandbox; external packages and `requirements.txt` are
-unsupported. See [`CHECKERS.md`](CHECKERS.md).
+Put a `checker/` directory beside every A&D or KotH manifest. Copy the complete
+directory from the closest example: `lib.py` supplies the protocol-neutral
+contexts, verdicts, `@checker` registry, and `run_ad_checker()` /
+`run_koth_checker()` entry points; the legacy `@ad_checker` and `@koth_checker`
+wrappers remain available. `run.py` owns the challenge protocol and assertions.
+An optional `requirements.txt` beside `run.py` may contain only simple, exactly
+pinned PyPI packages such as
+`pwntools==4.15.0`; URLs, local paths, editable installs, pip options, and
+unpinned or ranged versions are rejected. Repository Bindings installs these
+packages and their dependencies into the immutable checker environment using
+wheels only, so preparation fails when a compatible wheel cannot be resolved.
+
+The managed Pwn example demonstrates a newline-framed raw TCP checker using
+`pwntools==4.15.0`; the self-hosted Web example uses `httpx==0.28.1`; KotH keeps
+its standard-library HTTP implementation and needs no requirements. Dependency
+resolution requires PyPI access during a trusted repository scan or admin
+approval. Review the repository commit and package pins before preparing them.
+See [`CHECKERS.md`](CHECKERS.md).
+
+The examples register focused checks whose execution order is cryptographically
+and independently shuffled for each checker process. A fresh shuffle may repeat
+an earlier order. Every registered function is attempted once; none is randomly
+skipped, and source-registration order is not execution order.
+Failures do not skip later checks; the final priority is InternalError, Offline,
+Mumble, then OK.
+The A&D suite as a whole must cover full service health and the current flag.
+Checks must be read-only and order-independent. Order and fingerprint variation
+is only defense-in-depth: it does not hide the checker source IP or by itself
+prevent source-IP allowlisting.
 
 Use these two A&D examples to compare the hosting modes:
 

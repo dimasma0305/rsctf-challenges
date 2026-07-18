@@ -9,12 +9,7 @@
  * checker layout fail closed. rsctf remains the authoritative importer schema.
  */
 
-import {
-  existsSync,
-  lstatSync,
-  readFileSync,
-  readdirSync,
-} from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -85,13 +80,7 @@ const CONTAINER_KEYS = new Set([
   'enableSharedContainer',
 ])
 
-const AD_KEYS = new Set([
-  'checkerImage',
-  'allowEgress',
-  'allowSelfReset',
-  'sshRequiresFlag',
-  'selfHosted',
-])
+const AD_KEYS = new Set(['checkerImage', 'allowEgress', 'allowSelfReset', 'sshRequiresFlag', 'selfHosted'])
 
 const TYPES = [
   'StaticAttachment',
@@ -102,12 +91,9 @@ const TYPES = [
   'KingOfTheHill',
 ]
 
-const EXPECTED_TYPE_COUNTS = new Map(
-  TYPES.map((type) => [type, type === 'AttackDefense' ? 2 : 1]),
-)
+const EXPECTED_TYPE_COUNTS = new Map(TYPES.map((type) => [type, type === 'AttackDefense' ? 2 : 1]))
 
-const EXPECTED_CHALLENGE_COUNT = [...EXPECTED_TYPE_COUNTS.values()]
-  .reduce((total, count) => total + count, 0)
+const EXPECTED_CHALLENGE_COUNT = [...EXPECTED_TYPE_COUNTS.values()].reduce((total, count) => total + count, 0)
 
 const CATEGORIES = new Set([
   'Misc',
@@ -125,12 +111,7 @@ const CATEGORIES = new Set([
   'OSINT',
 ])
 
-const CONTAINER_TYPES = new Set([
-  'StaticContainer',
-  'DynamicContainer',
-  'AttackDefense',
-  'KingOfTheHill',
-])
+const CONTAINER_TYPES = new Set(['StaticContainer', 'DynamicContainer', 'AttackDefense', 'KingOfTheHill'])
 
 function reportError(file, message) {
   errors.push(`${relative(ROOT, file) || '.'}: ${message}`)
@@ -343,23 +324,44 @@ function positiveInteger(value) {
   return Number.isInteger(value) && value > 0
 }
 
+function registeredChecks(source) {
+  const lines = source.replaceAll('\r\n', '\n').split('\n')
+  const checks = []
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index] !== '@checker') continue
+    const definition = /^def ([A-Za-z_][A-Za-z0-9_]*)\(context: (AdContext|KothContext)\) -> None:$/.exec(
+      lines[index + 1] ?? ''
+    )
+    if (!definition) continue
+
+    const body = []
+    for (let cursor = index + 2; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor]
+      if (line.trim() !== '' && !line.startsWith(' ')) break
+      body.push(line)
+    }
+    checks.push({
+      name: definition[1],
+      context: definition[2],
+      body: body.join('\n'),
+    })
+  }
+  return checks
+}
+
 function checkChallengeLayout(file, model) {
   const parts = relative(ROOT, file).split(sep)
-  const expectedMode = model.type === 'AttackDefense'
-    ? 'AD'
-    : model.type === 'KingOfTheHill'
-      ? 'Koth'
-      : 'Jeopardy'
+  const expectedMode = model.type === 'AttackDefense' ? 'AD' : model.type === 'KingOfTheHill' ? 'Koth' : 'Jeopardy'
   if (
-    parts.length !== 4
-    || parts[0] !== expectedMode
-    || parts[1] !== model.category
-    || parts[2].trim() === ''
-    || !['challenge.yaml', 'challenge.yml'].includes(parts[3])
+    parts.length !== 4 ||
+    parts[0] !== expectedMode ||
+    parts[1] !== model.category ||
+    parts[2].trim() === '' ||
+    !['challenge.yaml', 'challenge.yml'].includes(parts[3])
   ) {
     reportError(
       file,
-      `must use ${expectedMode}/<category>/<challenge>/challenge.yaml and match category ${model.category}`,
+      `must use ${expectedMode}/<category>/<challenge>/challenge.yaml and match category ${model.category}`
     )
   }
 }
@@ -398,6 +400,7 @@ function checkSafeProvide(file, provided) {
 
 function checkChecker(file, model) {
   const packageRoot = dirname(file)
+  const packagePath = relative(ROOT, packageRoot).split(sep).join('/')
   const checkerRoot = resolve(packageRoot, 'checker')
   const hasChecker = existsSync(checkerRoot)
   const checkerImage = model.ad?.checkerImage
@@ -413,9 +416,43 @@ function checkChecker(file, model) {
     return
   }
 
-  const checkerFiles = walk(checkerRoot)
-  if (checkerFiles.some((candidate) => candidate.endsWith(`${sep}requirements.txt`))) {
-    reportError(file, 'checker requirements.txt is forbidden by the current importer')
+  const requirements = resolve(checkerRoot, 'requirements.txt')
+  if (existsSync(requirements)) {
+    const requirementsSource = readFileSync(requirements, 'utf8')
+    if (Buffer.byteLength(requirementsSource, 'utf8') > 16 * 1024) {
+      reportError(file, 'checker requirements.txt exceeds the 16 KiB platform limit')
+    }
+    const requirementLines = requirementsSource
+      .split(/\r?\n/)
+      .map((line) => line.split('#', 1)[0].trim())
+      .filter((line) => line !== '')
+    if (requirementLines.length > 32) {
+      reportError(file, 'checker requirements.txt exceeds the 32-package platform limit')
+    }
+    const packageNames = new Set()
+    for (const line of requirementLines) {
+      const parts = line.split('==')
+      const [name, version] = parts
+      const validName =
+        parts.length === 2 &&
+        name.length > 0 &&
+        name.length <= 128 &&
+        /^[A-Za-z0-9][A-Za-z0-9_.-]*[A-Za-z0-9]$|^[A-Za-z0-9]$/.test(name)
+      const validVersion =
+        parts.length === 2 &&
+        version.length > 0 &&
+        version.length <= 128 &&
+        /^[A-Za-z0-9][A-Za-z0-9_.+!-]*[A-Za-z0-9]$|^[A-Za-z0-9]$/.test(version)
+      if (!validName || !validVersion) {
+        reportError(file, 'checker requirements must use exact package==version pins')
+        continue
+      }
+      const normalizedName = name.toLowerCase().replaceAll(/[-_.]+/g, '-')
+      if (packageNames.has(normalizedName)) {
+        reportError(file, `checker requirements repeat package ${name}`)
+      }
+      packageNames.add(normalizedName)
+    }
   }
   const entry = resolve(checkerRoot, 'run.py')
   if (!existsSync(entry)) {
@@ -433,12 +470,12 @@ function checkChecker(file, model) {
   }
   const source = readFileSync(entry, 'utf8')
   const librarySource = readFileSync(library, 'utf8')
+  const checks = registeredChecks(source)
+  const suiteBody = checks.map(({ body }) => body).join('\n')
+  const checkerDecoratorCount = source.match(/^@checker$/gm)?.length ?? 0
   checkerLibraries.push({ file: library, source: librarySource })
   if (!source.includes('from lib import')) {
     reportError(file, 'checker/run.py must import reusable helpers from sibling lib.py')
-  }
-  if (!source.includes('raise SystemExit(check())')) {
-    reportError(file, 'checker/run.py must exit with the decorated check() result')
   }
   for (const helper of [
     'class TargetContext',
@@ -447,24 +484,24 @@ function checkChecker(file, model) {
     'class Mumble',
     'class Offline',
     'def ad_checker',
+    'def checker',
     'def koth_checker',
+    'def run_ad_checker',
+    'def run_koth_checker',
+    'functions = list(_registered_checkers)',
+    'secrets.randbelow(index + 1)',
+    'for function in functions:',
   ]) {
     if (!librarySource.includes(helper)) {
       reportError(file, `checker/lib.py does not provide ${helper}`)
     }
   }
-  for (const transportHelper of [
-    'http.client',
-    'socket',
-    'def http_get',
-    'def get_text',
-    'def expect_text',
-  ]) {
+  if (librarySource.includes('secrets.choice(')) {
+    reportError(file, 'checker/lib.py must run the complete suite, not choose one check')
+  }
+  for (const transportHelper of ['http.client', 'socket', 'def http_get', 'def get_text', 'def expect_text']) {
     if (librarySource.includes(transportHelper)) {
-      reportError(
-        file,
-        `checker/lib.py must stay protocol-neutral; found ${transportHelper}`,
-      )
+      reportError(file, `checker/lib.py must stay protocol-neutral; found ${transportHelper}`)
     }
   }
   const contractSource = `${source}\n${librarySource}`
@@ -484,16 +521,120 @@ function checkChecker(file, model) {
     if (!contractSource.includes('RSCTF_FLAG')) {
       reportError(file, 'AttackDefense checker source does not reference RSCTF_FLAG')
     }
-    if (!/@ad_checker\s*\ndef check\s*\(/.test(source) || source.includes('@koth_checker')) {
-      reportError(file, 'AttackDefense run.py must decorate check with @ad_checker')
+    if (!source.includes('raise SystemExit(run_ad_checker())')) {
+      reportError(file, 'AttackDefense run.py must exit with run_ad_checker()')
+    }
+    if (checkerDecoratorCount < 2 || checks.length !== checkerDecoratorCount) {
+      reportError(file, 'AttackDefense run.py must define at least two typed @checker checks')
+    }
+    if (source.includes('@ad_checker') || source.includes('@koth_checker')) {
+      reportError(file, 'AttackDefense example must use @checker registration')
+    }
+    for (const check of checks) {
+      if (check.context !== 'AdContext') {
+        reportError(file, `registered check ${check.name} must accept AdContext`)
+      }
+    }
+    if (!suiteBody.includes('context.flag')) {
+      reportError(file, 'registered A&D checker suite must verify context.flag')
     }
   }
   if (model.type === 'KingOfTheHill') {
-    if (!/@koth_checker\s*\ndef check\s*\(/.test(source) || source.includes('@ad_checker')) {
-      reportError(file, 'KingOfTheHill run.py must decorate check with @koth_checker')
+    if (!source.includes('raise SystemExit(run_koth_checker())')) {
+      reportError(file, 'KingOfTheHill run.py must exit with run_koth_checker()')
+    }
+    if (checkerDecoratorCount < 2 || checks.length !== checkerDecoratorCount) {
+      reportError(file, 'KingOfTheHill run.py must define at least two typed @checker checks')
+    }
+    if (source.includes('@ad_checker') || source.includes('@koth_checker')) {
+      reportError(file, 'KingOfTheHill example must use @checker registration')
+    }
+    for (const check of checks) {
+      if (check.context !== 'KothContext') {
+        reportError(file, `registered check ${check.name} must accept KothContext`)
+      }
+    }
+    if (!suiteBody.includes('"/health"')) {
+      reportError(file, 'registered KotH checker suite must verify /health')
     }
     if (source.includes('RSCTF_FLAG')) {
       reportError(file, 'KingOfTheHill run.py must not use RSCTF_FLAG')
+    }
+  }
+  if (packagePath === 'AD/Pwn/attack-defense-service') {
+    if (!existsSync(requirements) || readFileSync(requirements, 'utf8').trim() !== 'pwntools==4.15.0') {
+      reportError(file, 'raw TCP checker must pin pwntools==4.15.0 in requirements.txt')
+    }
+    for (const marker of [
+      'os.environ["PWNLIB_NOTERM"] = "1"',
+      'from pwn import context as pwn_context, remote',
+      'pwn_context.log_level = "critical"',
+      'tube.sendline(',
+      'tube.recv(',
+      'monotonic()',
+      'PwnlibException',
+      'PING',
+      'GET_FLAG',
+    ]) {
+      if (!source.includes(marker)) {
+        reportError(file, `raw TCP checker is missing ${marker}`)
+      }
+    }
+    if (!suiteBody.includes('"PING"') || !suiteBody.includes('"GET_FLAG"')) {
+      reportError(file, 'raw TCP checker suite must verify PING and GET_FLAG')
+    }
+    if (source.includes('HTTPConnection') || source.includes('socket.create_connection')) {
+      reportError(file, 'raw TCP checker must use the pinned pwntools tube API')
+    }
+
+    const service = resolve(packageRoot, 'src', 'app.py')
+    if (existsSync(service)) {
+      const serviceSource = readFileSync(service, 'utf8')
+      for (const marker of ['socketserver.ThreadingTCPServer', 'PING', 'PONG', 'GET_FLAG']) {
+        if (!serviceSource.includes(marker)) {
+          reportError(file, `raw TCP service is missing ${marker}`)
+        }
+      }
+      if (serviceSource.includes('http.server')) {
+        reportError(file, 'raw TCP service must not use the HTTP server')
+      }
+    }
+  }
+  if (packagePath === 'AD/Web/self-hosted-service') {
+    if (!existsSync(requirements) || readFileSync(requirements, 'utf8').trim() !== 'httpx==0.28.1') {
+      reportError(file, 'self-hosted HTTP checker must pin httpx==0.28.1')
+    }
+    for (const marker of [
+      'import httpx',
+      'httpx.Client(',
+      'follow_redirects=False',
+      'trust_env=False',
+      'client.stream(',
+      'response.iter_raw(chunk_size=1024)',
+      'MAX_RESPONSE_BYTES',
+      'httpx.TimeoutException',
+      'httpx.NetworkError',
+      'httpx.ProtocolError',
+      'context.target_ip',
+      'context.target_port',
+    ]) {
+      if (!source.includes(marker)) {
+        reportError(file, `self-hosted HTTP checker is missing ${marker}`)
+      }
+    }
+    if (!suiteBody.includes('"/health"') || !suiteBody.includes('"/secret"')) {
+      reportError(file, 'self-hosted HTTP checker suite must verify health and flag')
+    }
+    if (source.includes('HTTPConnection') || source.includes('from pwn import')) {
+      reportError(file, 'self-hosted HTTP checker must use the pinned httpx client')
+    }
+  }
+  if (packagePath === 'Koth/Pwn/king-of-the-hill') {
+    if (!source.includes('HTTPConnection') || source.includes('from pwn import')) {
+      reportError(file, 'KotH checker must remain an HTTP standard-library client')
+    }
+    if (existsSync(requirements)) {
+      reportError(file, 'KotH checker must remain dependency-free')
     }
   }
   if (checkerImage) {
@@ -523,10 +664,10 @@ function validateEvent(file, model) {
       }
     }
     if (
-      model.ad.getflagWindowFraction !== undefined
-      && (typeof model.ad.getflagWindowFraction !== 'number'
-        || model.ad.getflagWindowFraction <= 0
-        || model.ad.getflagWindowFraction > 1)
+      model.ad.getflagWindowFraction !== undefined &&
+      (typeof model.ad.getflagWindowFraction !== 'number' ||
+        model.ad.getflagWindowFraction <= 0 ||
+        model.ad.getflagWindowFraction > 1)
     ) {
       reportError(file, 'ad.getflagWindowFraction must be in (0, 1]')
     }
@@ -547,8 +688,8 @@ function validateChallenge(file, model) {
     checkChallengeLayout(file, model)
   }
   if (
-    model.minScoreRate !== undefined
-    && (typeof model.minScoreRate !== 'number' || model.minScoreRate < 0 || model.minScoreRate > 1)
+    model.minScoreRate !== undefined &&
+    (typeof model.minScoreRate !== 'number' || model.minScoreRate < 0 || model.minScoreRate > 1)
   ) {
     reportError(file, 'minScoreRate must be in [0, 1]')
   }
@@ -584,8 +725,8 @@ function validateChallenge(file, model) {
       reportError(file, 'auto-built sample image must provide src/Dockerfile and src/app.py')
     }
     if (
-      container.enableTrafficCapture !== undefined
-      && (model.type !== 'AttackDefense' || model.ad?.selfHosted === true)
+      container.enableTrafficCapture !== undefined &&
+      (model.type !== 'AttackDefense' || model.ad?.selfHosted === true)
     ) {
       reportError(file, 'container.enableTrafficCapture applies only to platform-hosted A&D')
     }
@@ -593,9 +734,9 @@ function validateChallenge(file, model) {
       reportError(file, 'container.enableSharedContainer applies only to StaticContainer')
     }
     if (
-      model.type === 'KingOfTheHill'
-      && existsSync(dockerfile)
-      && !readFileSync(dockerfile, 'utf8').includes('chmod 01777 /koth')
+      model.type === 'KingOfTheHill' &&
+      existsSync(dockerfile) &&
+      !readFileSync(dockerfile, 'utf8').includes('chmod 01777 /koth')
     ) {
       reportError(file, 'KotH Dockerfile must make /koth writable for arbitrary non-root UIDs')
     }
@@ -653,7 +794,7 @@ function validateChallenge(file, model) {
   }
   if (model.type === 'DynamicAttachment') {
     notices.push(
-      `${relative(ROOT, file)}: expected limitation — current rsctf imports this schema but does not assign per-team flag attachments`,
+      `${relative(ROOT, file)}: expected limitation — current rsctf imports this schema but does not assign per-team flag attachments`
     )
   }
   return model.type
@@ -670,14 +811,12 @@ function main() {
   if (events.length === 1) {
     const event = parseFile(events[0])
     validateEvent(events[0], event)
-    challengeFiles = walk(dirname(events[0])).filter((file) =>
-      file.endsWith(`${sep}challenge.yaml`) || file.endsWith(`${sep}challenge.yml`),
+    challengeFiles = walk(dirname(events[0])).filter(
+      (file) => file.endsWith(`${sep}challenge.yaml`) || file.endsWith(`${sep}challenge.yml`)
     )
   }
   if (challengeFiles.length !== EXPECTED_CHALLENGE_COUNT) {
-    errors.push(
-      `expected exactly ${EXPECTED_CHALLENGE_COUNT} challenge manifests, found ${challengeFiles.length}`,
-    )
+    errors.push(`expected exactly ${EXPECTED_CHALLENGE_COUNT} challenge manifests, found ${challengeFiles.length}`)
   }
 
   const foundTypes = []
@@ -705,9 +844,7 @@ function main() {
   for (const selfHosted of [false, true]) {
     const count = attackDefenseHostingModes.filter((candidate) => candidate === selfHosted).length
     if (count !== 1) {
-      errors.push(
-        `expected exactly one AttackDefense manifest with ad.selfHosted: ${selfHosted}, found ${count}`,
-      )
+      errors.push(`expected exactly one AttackDefense manifest with ad.selfHosted: ${selfHosted}, found ${count}`)
     }
   }
   if (new Set(checkerLibraries.map(({ source }) => source)).size !== 1) {
@@ -721,10 +858,8 @@ function main() {
     process.exitCode = 1
     return
   }
-  console.log(
-    `OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`,
-  )
-  console.log('OK: manifests use known keys, local builds, and protocol-neutral checker libraries.')
+  console.log(`OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`)
+  console.log('OK: manifests use local builds, pinned checker wheels, and protocol-neutral libraries.')
 }
 
 main()

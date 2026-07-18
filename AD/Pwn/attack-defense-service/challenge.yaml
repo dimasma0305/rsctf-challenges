@@ -1,13 +1,14 @@
 # Platform-hosted AttackDefense example. rsctf launches one service per accepted
 # team, runs checker/run.py each round, and exposes team targets through A&D.
-name: "Attack & Defense Demo: Flag File Service"
+name: "Attack & Defense Demo: Raw TCP Flag Service"
 author: "rsctf documentation team"
 description: |
   Defend your service and retrieve rotating flags from the other teams.
 
-  rsctf writes the current round flag to RSCTF_FLAG_FILE, and the checker verifies
-  it through /flag. That endpoint is intentionally unauthenticated: this is an
-  educational smoke test for A&D orchestration, not a production challenge.
+  rsctf writes the current round flag to RSCTF_FLAG_FILE. The service accepts one
+  newline-framed command per TCP connection: PING returns PONG, and GET_FLAG
+  returns the current flag. GET_FLAG is intentionally unauthenticated: this is
+  an educational smoke test for A&D orchestration, not a production challenge.
 type: AttackDefense
 category: Pwn
 
@@ -27,8 +28,8 @@ container:
   enableTrafficCapture: false
 
 ad:
-  # The importer prepares checker/{run.py,lib.py} in a sandboxed, dependency-free
-  # Python environment and stores that prepared directory on the challenge.
+  # The importer prepares checker/{run.py,lib.py,requirements.txt}, installs the
+  # exact dependency pin, and stores that environment on the challenge.
   allowEgress: false
   allowSelfReset: true
   # false means rsctf hosts the per-team service. true selects the BYOC workflow.

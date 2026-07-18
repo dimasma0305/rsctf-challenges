@@ -17,16 +17,18 @@ pulled from Docker Hub.
 | `Jeopardy/Misc/dynamic-handout` | `DynamicAttachment` | The current YAML shape and a multi-file attachment | **No** — see the current limitation below |
 | `Jeopardy/Web/static-flag-service` | `StaticContainer` | One shared HTTP container with a static injected flag | Yes, after a runtime test and flag replacement |
 | `Jeopardy/Web/dynamic-flag-service` | `DynamicContainer` | One HTTP container per team using `RSCTF_FLAG` | Yes, after a runtime test |
-| `AD/Pwn/attack-defense-service` | `AttackDefense` | Platform-hosted per-team service, rotating flag file, and functional checker | Demo only; validate the entire A&D network first |
-| `AD/Web/self-hosted-service` | `AttackDefense` | BYOC service image, outbound tunnel, rotating flag file, and functional checker | Demo only; validate the BYOC relay first |
+| `AD/Pwn/attack-defense-service` | `AttackDefense` | Platform-hosted raw TCP line service, rotating flag file, and pwntools checker | Demo only; validate the entire A&D network first |
+| `AD/Web/self-hosted-service` | `AttackDefense` | BYOC HTTP service, outbound tunnel, rotating flag file, and HTTP checker | Demo only; validate the BYOC relay first |
 | `Koth/Pwn/king-of-the-hill` | `KingOfTheHill` | Shared hill and `/koth/king` control marker | Demo only; Docker is currently required for reliable marker reads |
 
 Repository imports always create challenges with `isEnabled = false`. This
 event is also created with `hidden: true`, so importing it does not publish a
 live competition. Trusted repository imports do mark the challenge review state
-as active. During the scan, this example prepares three dependency-free A&D/KotH
-checkers and builds the five container challenge images from their checked-in
-source. Each checker pairs a reusable `lib.py` with a small decorated `run.py`.
+as active. During the scan, this example prepares three A&D/KotH checkers and
+builds the five container challenge images from their checked-in source. Each
+checker pairs a protocol-neutral `lib.py` with registered checks in `run.py`;
+the Pwn and Web checkers additionally install exact `pwntools==4.15.0` and
+`httpx==0.28.1` wheel requirements, respectively.
 
 New challenge authors should start with [`CONFIGURATION.md`](CONFIGURATION.md)
 and [`CHECKERS.md`](CHECKERS.md). The active manifests are deliberately
@@ -75,10 +77,11 @@ build contexts, invalid ports/resources, or an unsupported checker layout. It
 reports the current `DynamicAttachment` behavior as an expected limitation
 rather than pretending that the example is playable.
 
-Run the dependency-free checker smoke tests separately:
+Run the checker smoke tests separately after installing the A&D checkers'
+pinned wheel dependencies as described in [`CHECKERS.md`](CHECKERS.md):
 
 ```sh
-python3 scripts/test-checkers.py
+/tmp/rsctf-example-checkers/bin/python scripts/test-checkers.py
 ```
 
 They launch the bundled services on loopback and verify the `0` OK, `1` Mumble,
@@ -132,8 +135,8 @@ Docker context, generates an internal `rsctf/<game>/<challenge>:latest` tag, and
 builds it through the configured Docker daemon. A concrete `containerImage`
 would override this behavior and make the importer pull that registry image.
 
-The Dockerfiles use the official `python:3.12-alpine` base only for Python's
-standard-library HTTP server; all application behavior is included in each
+The Dockerfiles use the official `python:3.12-alpine` base only for small
+Python standard-library services; all application behavior is included in each
 `src/app.py`. Docker can still pull that base image while building if it is not
 already cached. Mirror or replace the base image as well if the build host must
 not access Docker Hub at all.
@@ -156,20 +159,33 @@ variable. That is the current rsctf contract for normal container challenges.
 
 ## A&D checker contract
 
-Both A&D examples include a standard-library-only checker directory. Its
-`lib.py` provides `AdContext`, verdict exceptions, and the protocol-neutral
-`@ad_checker` decorator. `run.py` implements the service's actual protocol and
-contains its assertions and decorated entry point. The included demos happen to
-use HTTP, but a raw TCP, binary, or custom TCP challenge should replace that
-code in `run.py` without changing the platform helper. Copy both files when
-using the template. rsctf delivers the rotating flag to the service first, then
+Both A&D examples keep platform concerns in `lib.py`: `AdContext`, verdict
+exceptions, `@checker`, and `run_ad_checker()`. `run.py` implements the
+service's actual protocol and registers a suite of focused checks. The runner
+cryptographically shuffles their order for each process invocation and attempts
+every registered function once. It continues after individual failures and
+combines them as InternalError, Offline, Mumble, then OK.
+The managed Pwn demo uses `pwntools==4.15.0` for its newline-framed raw TCP
+protocol; the self-hosted Web demo uses `httpx==0.28.1` for HTTP. A binary or
+custom TCP challenge can replace that code in `run.py` without changing the
+platform helper. Copy the complete checker directory, including any
+`requirements.txt`. rsctf delivers the rotating flag to the service first, then
 gives the checker the same expected value as `RSCTF_FLAG`. The checker retrieves
 and compares it through player-visible behavior without changing service state.
 
+The complete A&D suite covers both service health and the current flag. Focused
+checks may cover one responsibility each, but they must be read-only and cannot
+depend on registration or execution order. Varying request order is
+defense-in-depth against checker fingerprinting, but it does not hide the
+platform's source IP and cannot by itself prevent a service from source-IP
+allowlisting the checker. The legacy one-function `@ad_checker` entry point
+remains supported.
+
 The platform-hosted service reads its writable `RSCTF_FLAG_FILE` inside the
 managed container. The self-hosted service reads `/shared/flag`, which the BYOC
-agent updates through the outbound tunnel. The checker-facing target contract is
-the same in both modes.
+agent updates through the outbound tunnel. Both checker modes receive the same
+platform context, while each challenge's `run.py` defines its own application
+protocol.
 
 See [`CHECKERS.md`](CHECKERS.md) for environment variables, the `0` OK / `1`
 Mumble / `2` Offline / `3` InternalError mapping, sandbox constraints, and local
@@ -184,12 +200,13 @@ disabled until a full two-team staging run passes.
 The hill accepts a team's current control token at
 `/claim?token=URL_ENCODED_TOKEN` and atomically writes it to `/koth/king`. rsctf
 executes into the shared hill container, reads that marker, and maps the exact
-token to its team. Its custom checker uses `KothContext` and `@koth_checker` to
-verify the demo's HTTP `/health` behavior without requiring `RSCTF_FLAG` or
-touching the ownership marker. That HTTP exchange lives in this challenge's
-`run.py`; another hill may use any TCP application protocol its service
-requires. This also satisfies the official scoring-start requirement that every
-enabled engine challenge has a prepared checker.
+token to its team. Its custom checker uses `KothContext`, `@checker`, and
+`run_koth_checker()` to run every focused HTTP check in cryptographically
+shuffled order without requiring `RSCTF_FLAG` or touching the ownership marker.
+That HTTP exchange lives in this challenge's `run.py`; another hill may use any
+TCP application protocol its service requires. The legacy `@koth_checker` entry
+point remains supported. This also satisfies the official scoring-start
+requirement that every enabled engine challenge has a prepared checker.
 
 Current Kubernetes support cannot reliably provide every Docker-style KotH exec
 and networking behavior. Use the Docker backend for this sample unless your

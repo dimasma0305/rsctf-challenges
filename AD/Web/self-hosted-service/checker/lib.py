@@ -10,6 +10,7 @@ from enum import IntEnum
 from functools import wraps
 from ipaddress import ip_address
 import os
+import secrets
 from typing import Callable, TypedDict, TypeVar
 
 
@@ -19,7 +20,10 @@ __all__ = [
     "Mumble",
     "Offline",
     "ad_checker",
+    "checker",
     "koth_checker",
+    "run_ad_checker",
+    "run_koth_checker",
 ]
 
 
@@ -108,6 +112,8 @@ def _load_koth_context() -> KothContext:
 
 
 ContextT = TypeVar("ContextT", AdContext, KothContext)
+CheckerFunctionT = TypeVar("CheckerFunctionT", bound=Callable[..., None])
+_registered_checkers: list[Callable[..., object]] = []
 
 
 def _execute(
@@ -127,6 +133,55 @@ def _execute(
         # Configuration and checker bugs are infrastructure failures.
         return int(Verdict.INTERNAL_ERROR)
     return int(Verdict.OK)
+
+
+def checker(function: CheckerFunctionT) -> CheckerFunctionT:
+    """Register one focused check for the shuffled checker suite."""
+    _registered_checkers.append(function)
+    return function
+
+
+def _shuffled_checkers() -> list[Callable[..., object]]:
+    functions = list(_registered_checkers)
+    for index in range(len(functions) - 1, 0, -1):
+        selected = secrets.randbelow(index + 1)
+        functions[index], functions[selected] = functions[selected], functions[index]
+    return functions
+
+
+def _failure_priority(error: BaseException) -> Verdict:
+    if isinstance(error, Offline):
+        return Verdict.OFFLINE
+    if isinstance(error, Mumble):
+        return Verdict.MUMBLE
+    return Verdict.INTERNAL_ERROR
+
+
+def _execute_registered(context: ContextT) -> None:
+    functions = _shuffled_checkers()
+    if not functions:
+        raise RuntimeError("no checker functions registered")
+
+    failures: list[BaseException] = []
+    for function in functions:
+        try:
+            result = function(context)
+            if result is not None:
+                raise TypeError("checker functions must return None")
+        except BaseException as error:
+            failures.append(error)
+    if failures:
+        raise max(failures, key=_failure_priority)
+
+
+def run_ad_checker() -> int:
+    """Run every registered A&D check once in shuffled order."""
+    return _execute(_execute_registered, _load_ad_context)
+
+
+def run_koth_checker() -> int:
+    """Run every registered KotH check once in shuffled order."""
+    return _execute(_execute_registered, _load_koth_context)
 
 
 def ad_checker(function: Callable[[AdContext], None]) -> Callable[[], int]:

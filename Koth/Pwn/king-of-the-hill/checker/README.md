@@ -2,18 +2,24 @@
 
 Copy both `lib.py` and `run.py`; the checker needs both dependency-free files.
 `lib.py` provides the protocol-neutral `KothContext`, verdict exceptions, and
-`@koth_checker`. This demo's bounded HTTP request code and hill-health assertion
-live in `run.py`. Replace its `http_get` function when the hill uses raw TCP,
-binary framing, or another custom TCP protocol; the decorator still validates
-`RSCTF_*` and maps outcomes to rsctf exit codes. Do not add `requirements.txt`
-or external packages.
+the `@checker` / `run_koth_checker()` suite API. The legacy single-function
+`@koth_checker` wrapper remains available. This demo's bounded HTTP request code
+lives in `run.py`; separate focused functions check `/health` and the public
+banner. The runner cryptographically shuffles them, attempts each once, and
+combines any failures with deterministic verdict priority. Each check must be
+read-only and order-independent. Replace `http_get` and the whole suite when the
+hill uses another TCP protocol.
+
+This HTTP example intentionally needs no `requirements.txt`. If an adapted
+checker needs a package, use the exact, wheel-only PyPI pin format documented in
+the repository's `CHECKERS.md`.
 
 KotH checkers receive the target and round metadata, but no `RSCTF_FLAG`.
 rsctf owns the capability-token marker protocol: it reads `/koth/king` before
 and after this checker and attributes the stable value itself. A checker must
 therefore verify health without reading or modifying the marker.
 
-Start `src/app.py`, then run the decorated checker from the challenge directory:
+Start `src/app.py`, then run the shuffled checker suite from the challenge directory:
 
 ```sh
 RSCTF_ACTION=check \

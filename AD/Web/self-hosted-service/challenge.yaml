@@ -25,7 +25,8 @@ container:
   exposePort: 8080
 
 ad:
-  # Repository Bindings prepares checker/{run.py,lib.py} automatically.
+  # Repository Bindings prepares checker/{run.py,lib.py,requirements.txt} and
+  # installs the exact HTTP client dependency pin automatically.
   # Managed-container egress, reset, traffic-capture, and resource settings do
   # not apply because rsctf does not own the team's host.
   selfHosted: true

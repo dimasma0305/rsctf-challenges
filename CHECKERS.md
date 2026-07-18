@@ -2,15 +2,17 @@
 
 Repository Bindings automatically prepares a Python checker found at
 `checker/run.py` or `checker/src/run.py` beside an A&D/KotH manifest. It copies
-the whole source directory, so keep the reusable `lib.py` beside `run.py` and
-copy both files when starting a checker.
+the whole source directory, so keep the reusable `lib.py` and any optional
+`requirements.txt` beside `run.py`. Copy the complete checker directory when
+starting from an example.
 
 These checked-in examples are intended to be copied:
 
 - [`AD/Pwn/attack-defense-service/checker/`](AD/Pwn/attack-defense-service/checker/)
-  verifies a platform-hosted service and its rotating flag.
+  uses pinned pwntools to verify a platform-hosted raw TCP line service and its
+  rotating flag.
 - [`AD/Web/self-hosted-service/checker/`](AD/Web/self-hosted-service/checker/)
-  verifies the same contract through a BYOC tunnel.
+  uses pinned httpx to verify a self-hosted Web service through a BYOC tunnel.
 - [`Koth/Pwn/king-of-the-hill/checker/`](Koth/Pwn/king-of-the-hill/checker/)
   checks hill health without touching the KotH ownership marker.
 
@@ -39,8 +41,9 @@ The process exit code is the entire result:
 | `2` | Offline | Connection, reset, or request timeout prevented a response |
 | `3` | InternalError | Checker configuration or checker code is broken |
 
-Any other code is also `InternalError`. The decorators in the bundled `lib.py`
-load and validate this environment and map checker outcomes to these codes:
+Any other code is also `InternalError`. The shuffled-suite runners and
+legacy decorators in the bundled `lib.py` load and validate this environment
+and map checker outcomes to these codes:
 
 - returning normally is OK;
 - raising `Mumble` means the target answered incorrectly;
@@ -58,94 +61,231 @@ does not define an application protocol. HTTP, raw TCP, binary framing, and
 challenge-specific TCP handshakes belong in `run.py` because only the challenge
 author knows what a healthy service exchange looks like.
 
-The included A&D demos speak HTTP, so their `run.py` imports and implements HTTP
-locally. This abbreviated example has the same separation as the checked-in
-template:
+The managed Pwn demo uses one newline-framed command per TCP connection:
+`PING\n` must return `PONG\n`, and `GET_FLAG\n` must return the current flag plus
+a newline. Its `requirements.txt` pins `pwntools==4.15.0`, while `run.py` owns
+the raw TCP exchange:
 
 ```python
-from http.client import HTTPConnection, HTTPException
-import socket
+import os
+from time import monotonic
 
-from lib import AdContext, Mumble, Offline, ad_checker
+os.environ["PWNLIB_NOTERM"] = "1"
+
+from pwn import context as pwn_context, remote
+from pwnlib.exception import PwnlibException
+
+from lib import AdContext, Mumble, Offline, checker, run_ad_checker
 
 
 REQUEST_TIMEOUT_SECONDS = 3
 MAX_RESPONSE_BYTES = 4096
+pwn_context.log_level = "critical"
 
 
-def http_get(context: AdContext, path: str) -> str:
-    connection = HTTPConnection(
-        context.target_ip,
-        context.target_port,
-        timeout=REQUEST_TIMEOUT_SECONDS,
-    )
+def tcp_request(context: AdContext, command: str) -> str:
+    if "\r" in command or "\n" in command:
+        raise ValueError("checker commands must fit on one line")
+
+    tube = None
     try:
-        connection.request("GET", path, headers={"Connection": "close"})
-        response = connection.getresponse()
-        body = response.read(MAX_RESPONSE_BYTES + 1)
-    except (TimeoutError, socket.timeout, ConnectionError, OSError) as error:
+        tube = remote(
+            context.target_ip,
+            context.target_port,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        tube.sendline(command.encode("ascii"))
+        response = bytearray()
+        deadline = monotonic() + REQUEST_TIMEOUT_SECONDS
+        while b"\n" not in response and len(response) <= MAX_RESPONSE_BYTES:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                break
+            try:
+                chunk = tube.recv(
+                    numb=min(1024, MAX_RESPONSE_BYTES + 1 - len(response)),
+                    timeout=remaining,
+                )
+            except EOFError as error:
+                if response:
+                    break
+                raise Offline("the service closed without a response") from error
+            if chunk == b"":
+                break
+            response.extend(chunk)
+    except Offline:
+        raise
+    except (EOFError, TimeoutError, PwnlibException, OSError) as error:
         raise Offline("the service did not complete the request") from error
-    except HTTPException as error:
-        raise Mumble("the service returned invalid HTTP") from error
     finally:
-        connection.close()
+        if tube is not None:
+            tube.close()
 
-    if response.status != 200 or len(body) > MAX_RESPONSE_BYTES:
-        raise Mumble("the service returned an unexpected HTTP response")
+    if response == b"":
+        raise Offline("the service timed out or closed without a response")
+    if len(response) > MAX_RESPONSE_BYTES:
+        raise Mumble("the service response was too large")
+
+    line, newline, trailing = response.partition(b"\n")
+    if newline == b"" or trailing != b"":
+        raise Mumble("the service did not return a complete response line")
     try:
-        return body.decode("utf-8").rstrip("\r\n")
+        return line.removesuffix(b"\r").decode("utf-8")
     except UnicodeDecodeError as error:
         raise Mumble("the service response was not UTF-8") from error
 
 
-@ad_checker
-def check(context: AdContext) -> None:
-    if http_get(context, "/health") != "ok":
-        raise Mumble("the health endpoint did not return ok")
-    if http_get(context, "/flag") != context.flag:
-        raise Mumble("the flag endpoint did not return this round's flag")
+@checker
+def check_ping(context: AdContext) -> None:
+    if tcp_request(context, "PING") != "PONG":
+        raise Mumble("PING did not return PONG")
+
+
+@checker
+def check_flag(context: AdContext) -> None:
+    if tcp_request(context, "GET_FLAG") != context.flag:
+        raise Mumble("GET_FLAG did not return this round's flag")
 
 
 if __name__ == "__main__":
-    raise SystemExit(check())
+    raise SystemExit(run_ad_checker())
 ```
 
-For another TCP service, replace `http_get` with a bounded implementation of
+For another TCP service, replace `tcp_request` with a bounded implementation of
 that service's protocol. Raise `Offline` when the target cannot complete the
 exchange and `Mumble` when it responds but violates the expected protocol or
 content. Do not add a generic protocol to `lib.py`.
 
-`@ad_checker` turns the decorated function into a zero-argument entry point. It
-creates an `AdContext` from `RSCTF_*`, catches the documented exceptions, and
-returns the correct rsctf exit code. KotH uses the same shape with `KothContext`
-and `@koth_checker`, but it must not assert a flag or touch `/koth/king`. Its
-checked-in `run.py` defines its own typed `http_get` as above, followed by this
-decorated check:
+### Shuffled checker suites
+
+`@checker` registers a focused function without wrapping it. At the bottom of
+`run.py`, call `run_ad_checker()` or `run_koth_checker()` once. The runner first
+validates the environment and creates the appropriate context, then
+cryptographically shuffles a copy of the registry. **Every registered function
+is attempted exactly once**; none is randomly skipped, and source-registration
+order is not execution order. Each invocation shuffles independently, but a
+fresh shuffle can still produce the same order as an earlier run.
+
+One failed function does not prevent later functions from running. After the
+whole shuffled suite is attempted, the runner deterministically combines its
+results with this priority: InternalError, then Offline, then Mumble, then OK.
+A context-validation failure happens before the suite and is InternalError. The
+platform's outer hard timeout can still abort a checker that exceeds its total
+deadline. Register at least one function and do not mix A&D and KotH functions
+in one entry point.
+
+Focused functions are encouraged. The A&D suite **collectively** must verify
+service health, all required functionality, and the exact current
+`context.flag`; for example, one function may check health and another may check
+the flag. Each function must be read-only and independent: shuffled execution
+means it cannot rely on another check having run first or leave state required
+by a later check. All functions must return `None` normally.
+
+The self-hosted Web template follows the same split with
+`httpx==0.28.1`. Its `run.py` disables redirects and proxy-environment use,
+requests identity encoding, and streams at most 4096 response bytes. HTTP stays
+challenge-specific; none of this behavior moves into `lib.py`. Its two focused
+checks collectively cover `/health` and the current flag at `/secret`.
+
+KotH uses the matching runner but receives no flag. Its complete suite must
+cover the intended health/functionality contract and must not touch
+`/koth/king`. The checked-in KotH example registers focused health and banner
+checks after its local HTTP helper:
 
 ```python
-from lib import KothContext, Mumble, koth_checker
+from lib import KothContext, Mumble, checker, run_koth_checker
 
 
-@koth_checker
-def check(context: KothContext) -> None:
+@checker
+def check_health(context: KothContext) -> None:
     if http_get(context, "/health") != "ok":
         raise Mumble("the health endpoint did not return ok")
+
+
+@checker
+def check_banner(context: KothContext) -> None:
+    expected_banner = "rsctf KotH demo: submit your token at /claim?token=..."
+    if http_get(context, "/") != expected_banner:
+        raise Mumble("the public hill banner was incorrect")
+
+
+if __name__ == "__main__":
+    raise SystemExit(run_koth_checker())
+```
+
+Varying request order, sequences, or client fingerprints can make a brittle
+checker-detection rule less reliable. This is defense-in-depth against the
+so-called Superman defense, not a complete prevention. Shuffled checks do
+not hide or rotate the checker network path: a service can still observe a
+stable source IP and special-case it. The check source is not secret;
+cryptographic shuffling only makes execution order unpredictable, and every
+registered request is still attempted. Do not claim shuffling alone defeats
+source-IP allowlisting; organizers still need appropriate event rules, network
+design, monitoring, and checks that exercise player-visible behavior.
+
+### Legacy single-checker decorators
+
+The original `@ad_checker` and `@koth_checker` APIs remain supported for a
+single fixed checker. The decorator wraps one context-taking function as the
+zero-argument entry point and performs the same context validation and verdict
+mapping:
+
+```python
+from lib import AdContext, Mumble, ad_checker
+
+
+@ad_checker
+def check(context: AdContext) -> None:
+    # This one function must perform the complete health and current-flag check.
+    ...
 
 
 if __name__ == "__main__":
     raise SystemExit(check())
 ```
 
+For KotH, use `KothContext` with `@koth_checker`. Choose either the registered
+suite runner or the legacy single-checker style in one `run.py`; do not combine
+the entry-point patterns.
+
 Copy the complete `checker/` directory from the closest example, then edit the
-protocol exchange and challenge-specific assertions in `run.py`. Keep `lib.py`
-and `run.py` together; do not copy only the entry point. Neither file needs a
-third-party dependency.
+protocol exchange and challenge-specific assertions in `run.py`. Keep `lib.py`,
+`run.py`, and any `requirements.txt` together; do not copy only the entry point.
+
+## Optional PyPI dependencies
+
+A checker may put `requirements.txt` beside `run.py`. Every requirement must be
+a simple, exactly pinned PyPI package such as:
+
+```text
+pwntools==4.15.0
+```
+
+Repository Bindings rejects unpinned or ranged versions, URLs, local paths,
+editable installs, and pip options such as alternate indexes. During checker
+preparation, rsctf installs the requirements and their dependencies into the
+checker's immutable virtual environment using wheels only. A package without a
+compatible wheel is rejected; rsctf never falls back to a source distribution
+or package build. Blank lines and `#` comments are allowed; the file is limited
+to 16 KiB and 32 unique package names.
+
+Dependency preparation requires the rsctf process performing the trusted
+repository scan or admin approval to reach PyPI and its package file hosts. A
+download or resolution failure fails checker preparation. This is an
+administrator trust boundary: review the repository commit and every package
+pin before scanning or approving it. Exact direct pins constrain accidental
+top-level drift but do not make a third-party package trustworthy.
+
+Use dependencies only when they make the checker clearer. The managed Pwn demo
+uses `pwntools==4.15.0` for its raw TCP tube, and the self-hosted Web demo uses
+`httpx==0.28.1` for HTTP. KotH uses the standard library and intentionally omits
+`requirements.txt`. `lib.py` remains protocol-neutral and has no third-party
+imports.
 
 ## Sandbox rules
 
-- Use the Python standard library. The bundled `lib.py` has no external
-  dependencies; `requirements.txt` is rejected and pip is never run during
-  import.
+- Use only the standard library and packages installed from the reviewed,
+  pinned `requirements.txt`. Runtime installation is unavailable.
 - Set a short request timeout. The checker has one outer deadline, and an outer
   timeout becomes Offline.
 - TCP network access is confined to exactly the supplied target IP and port. Do
@@ -184,15 +324,21 @@ start until every enabled engine challenge has a prepared checker.
 
 ## Local workflow
 
-Each example checker directory includes both `lib.py` and `run.py`, plus exact
-commands for starting its service and running the decorated entry point. Before
-pushing, also run:
+Each example checker directory includes `lib.py` and `run.py`, plus exact
+commands for starting its service and running the checker entry point. The
+two A&D examples also include pinned `requirements.txt` files. Install both into
+a temporary virtual environment before running the repository-wide checker
+tests:
 
 ```sh
 node scripts/validate.mjs
 python3 -m compileall -q AD Koth Jeopardy scripts
-python3 scripts/test-checkers.py
+python3 -m venv /tmp/rsctf-example-checkers
+/tmp/rsctf-example-checkers/bin/python -m pip install \
+  --disable-pip-version-check --no-input --only-binary=:all: \
+  -- pwntools==4.15.0 httpx==0.28.1
+/tmp/rsctf-example-checkers/bin/python scripts/test-checkers.py
 ```
 
-CI performs these checks, exercises all four checker verdict classes, and
-builds every bundled service context.
+CI creates the same isolated environment, performs these checks, exercises all
+four checker verdict classes, and builds every bundled service context.
