@@ -99,7 +99,7 @@ def expect(checker: Path, expected: int, environment: dict[str, str]) -> None:
 
 
 def test_decorator_guardrails(library: Path) -> None:
-    """Checker bugs must become InternalError instead of escaping the wrapper."""
+    """The framework must map outcomes without assuming a service protocol."""
     module_name = "rsctf_checker_template_lib"
     spec = importlib.util.spec_from_file_location(module_name, library)
     if spec is None or spec.loader is None:
@@ -107,6 +107,18 @@ def test_decorator_guardrails(library: Path) -> None:
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
+
+    @module.ad_checker
+    def succeeds(_context):
+        return None
+
+    @module.ad_checker
+    def mumbles(_context):
+        raise module.Mumble("unexpected response")
+
+    @module.ad_checker
+    def is_offline(_context):
+        raise module.Offline("connection failed")
 
     @module.ad_checker
     def exits(_context):
@@ -118,8 +130,22 @@ def test_decorator_guardrails(library: Path) -> None:
 
     environment = checker_environment(1, team_id=1, flag="rsctf{guardrail}")
     with patch.dict(os.environ, environment, clear=True):
-        if exits() != 3 or returns_a_value() != 3:
-            raise RuntimeError("checker decorator guardrails must return InternalError")
+        actual = {
+            "success": succeeds(),
+            "mumble": mumbles(),
+            "offline": is_offline(),
+            "system exit": exits(),
+            "invalid return": returns_a_value(),
+        }
+    expected = {
+        "success": 0,
+        "mumble": 1,
+        "offline": 2,
+        "system exit": 3,
+        "invalid return": 3,
+    }
+    if actual != expected:
+        raise RuntimeError(f"checker decorator verdict mismatch: {actual!r}")
 
 
 def main() -> None:
@@ -209,7 +235,7 @@ def main() -> None:
                 checker_environment(koth_port, team_id=1),
             )
 
-    print("OK: checker smoke tests cover all verdicts and decorator guardrails.")
+    print("OK: checker smoke tests cover all verdicts and protocol-neutral decorators.")
 
 
 if __name__ == "__main__":

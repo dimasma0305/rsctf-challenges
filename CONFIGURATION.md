@@ -120,11 +120,12 @@ independent node-local daemons need a prebuilt immutable registry image instead.
 
 Put a dependency-free `checker/` directory beside every A&D or KotH manifest.
 Copy both `lib.py` and `run.py` from the closest example: `lib.py` supplies the
-shared contexts, verdicts, HTTP helpers, and `@ad_checker`/`@koth_checker`, while
-`run.py` contains the challenge-specific assertions. The importer detects
-`run.py` and prepares the complete local source directory for the checker
-sandbox; external packages and `requirements.txt` are unsupported. See
-[`CHECKERS.md`](CHECKERS.md).
+protocol-neutral contexts, verdicts, and `@ad_checker`/`@koth_checker` wrappers.
+`run.py` owns the challenge protocol and its assertions, whether that means
+HTTP, raw TCP, a binary packet format, or another service-specific TCP exchange.
+The importer detects `run.py` and prepares the complete local source directory
+for the checker sandbox; external packages and `requirements.txt` are
+unsupported. See [`CHECKERS.md`](CHECKERS.md).
 
 Use these two A&D examples to compare the hosting modes:
 

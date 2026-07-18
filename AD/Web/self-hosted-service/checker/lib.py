@@ -1,16 +1,15 @@
-"""Dependency-free helpers for rsctf process checkers.
+"""Protocol-neutral, dependency-free helpers for rsctf process checkers.
 
-Copy this file together with run.py. Repository Bindings prepares the whole
-checker directory, so sibling imports work inside the checker sandbox.
+Network and protocol code belongs in run.py. Copy this file together with
+run.py; Repository Bindings prepares the whole checker directory, so sibling
+imports work inside the checker sandbox.
 """
 
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import wraps
-from http.client import HTTPConnection, HTTPException
 from ipaddress import ip_address
 import os
-import socket
 from typing import Callable, TypedDict, TypeVar
 
 
@@ -20,13 +19,8 @@ __all__ = [
     "Mumble",
     "Offline",
     "ad_checker",
-    "expect_text",
-    "get_text",
     "koth_checker",
 ]
-
-REQUEST_TIMEOUT_SECONDS = 3
-MAX_RESPONSE_BYTES = 4096
 
 
 class Verdict(IntEnum):
@@ -111,38 +105,6 @@ def _load_koth_context() -> KothContext:
     if os.environ.get("RSCTF_FLAG") is not None:
         raise ValueError("KotH checker must not receive RSCTF_FLAG")
     return KothContext(**_target_values())
-
-
-def get_text(context: TargetContext, path: str) -> str:
-    """GET one target path without redirects or secondary connections."""
-    connection = HTTPConnection(
-        context.target_ip,
-        context.target_port,
-        timeout=REQUEST_TIMEOUT_SECONDS,
-    )
-    try:
-        connection.request("GET", path, headers={"Connection": "close"})
-        response = connection.getresponse()
-        body = response.read(MAX_RESPONSE_BYTES + 1)
-    except (TimeoutError, socket.timeout, ConnectionError, OSError) as error:
-        raise Offline from error
-    except HTTPException as error:
-        raise Mumble from error
-    finally:
-        connection.close()
-
-    if response.status != 200 or len(body) > MAX_RESPONSE_BYTES:
-        raise Mumble
-    try:
-        return body.decode("utf-8").rstrip("\r\n")
-    except UnicodeDecodeError as error:
-        raise Mumble from error
-
-
-def expect_text(context: TargetContext, path: str, expected: str) -> None:
-    """Require an exact UTF-8 response, otherwise report Mumble."""
-    if get_text(context, path) != expected:
-        raise Mumble
 
 
 ContextT = TypeVar("ContextT", AdContext, KothContext)

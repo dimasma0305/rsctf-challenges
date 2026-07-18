@@ -157,12 +157,14 @@ variable. That is the current rsctf contract for normal container challenges.
 ## A&D checker contract
 
 Both A&D examples include a standard-library-only checker directory. Its
-`lib.py` provides `AdContext`, verdict exceptions, bounded HTTP helpers, and the
-`@ad_checker` decorator; `run.py` contains only the service-specific assertions
-and decorated entry point. Copy both files when using the template. rsctf
-delivers the rotating flag to the service first, then gives the checker the same
-expected value as `RSCTF_FLAG`. The checker retrieves and compares it through
-player-visible behavior without changing service state.
+`lib.py` provides `AdContext`, verdict exceptions, and the protocol-neutral
+`@ad_checker` decorator. `run.py` implements the service's actual protocol and
+contains its assertions and decorated entry point. The included demos happen to
+use HTTP, but a raw TCP, binary, or custom TCP challenge should replace that
+code in `run.py` without changing the platform helper. Copy both files when
+using the template. rsctf delivers the rotating flag to the service first, then
+gives the checker the same expected value as `RSCTF_FLAG`. The checker retrieves
+and compares it through player-visible behavior without changing service state.
 
 The platform-hosted service reads its writable `RSCTF_FLAG_FILE` inside the
 managed container. The self-hosted service reads `/shared/flag`, which the BYOC
@@ -183,8 +185,10 @@ The hill accepts a team's current control token at
 `/claim?token=URL_ENCODED_TOKEN` and atomically writes it to `/koth/king`. rsctf
 executes into the shared hill container, reads that marker, and maps the exact
 token to its team. Its custom checker uses `KothContext` and `@koth_checker` to
-verify `/health` without requiring `RSCTF_FLAG` or touching the ownership
-marker. This also satisfies the official scoring-start requirement that every
+verify the demo's HTTP `/health` behavior without requiring `RSCTF_FLAG` or
+touching the ownership marker. That HTTP exchange lives in this challenge's
+`run.py`; another hill may use any TCP application protocol its service
+requires. This also satisfies the official scoring-start requirement that every
 enabled engine challenge has a prepared checker.
 
 Current Kubernetes support cannot reliably provide every Docker-style KotH exec

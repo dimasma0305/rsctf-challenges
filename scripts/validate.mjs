@@ -441,15 +441,30 @@ function checkChecker(file, model) {
     reportError(file, 'checker/run.py must exit with the decorated check() result')
   }
   for (const helper of [
+    'class TargetContext',
     'class AdContext',
     'class KothContext',
-    'def get_text',
-    'def expect_text',
+    'class Mumble',
+    'class Offline',
     'def ad_checker',
     'def koth_checker',
   ]) {
     if (!librarySource.includes(helper)) {
       reportError(file, `checker/lib.py does not provide ${helper}`)
+    }
+  }
+  for (const transportHelper of [
+    'http.client',
+    'socket',
+    'def http_get',
+    'def get_text',
+    'def expect_text',
+  ]) {
+    if (librarySource.includes(transportHelper)) {
+      reportError(
+        file,
+        `checker/lib.py must stay protocol-neutral; found ${transportHelper}`,
+      )
     }
   }
   const contractSource = `${source}\n${librarySource}`
@@ -709,7 +724,7 @@ function main() {
   console.log(
     `OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`,
   )
-  console.log('OK: manifests use known keys, local builds, and decorated checker/lib.py templates.')
+  console.log('OK: manifests use known keys, local builds, and protocol-neutral checker libraries.')
 }
 
 main()

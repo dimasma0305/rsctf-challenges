@@ -52,49 +52,94 @@ code `1` and would otherwise incorrectly blame the team as Mumble.
 
 ## Template structure
 
-Keep framework concerns in the dependency-free `lib.py` and service assertions
-in the small `run.py`. For A&D, import the shared helpers and decorate one
-function:
+Keep only platform concerns in the dependency-free `lib.py`: validated target
+context, verdict exceptions, decorators, and exit-code mapping. It deliberately
+does not define an application protocol. HTTP, raw TCP, binary framing, and
+challenge-specific TCP handshakes belong in `run.py` because only the challenge
+author knows what a healthy service exchange looks like.
+
+The included A&D demos speak HTTP, so their `run.py` imports and implements HTTP
+locally. This abbreviated example has the same separation as the checked-in
+template:
 
 ```python
-from lib import AdContext, ad_checker, expect_text
+from http.client import HTTPConnection, HTTPException
+import socket
+
+from lib import AdContext, Mumble, Offline, ad_checker
+
+
+REQUEST_TIMEOUT_SECONDS = 3
+MAX_RESPONSE_BYTES = 4096
+
+
+def http_get(context: AdContext, path: str) -> str:
+    connection = HTTPConnection(
+        context.target_ip,
+        context.target_port,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+    )
+    try:
+        connection.request("GET", path, headers={"Connection": "close"})
+        response = connection.getresponse()
+        body = response.read(MAX_RESPONSE_BYTES + 1)
+    except (TimeoutError, socket.timeout, ConnectionError, OSError) as error:
+        raise Offline("the service did not complete the request") from error
+    except HTTPException as error:
+        raise Mumble("the service returned invalid HTTP") from error
+    finally:
+        connection.close()
+
+    if response.status != 200 or len(body) > MAX_RESPONSE_BYTES:
+        raise Mumble("the service returned an unexpected HTTP response")
+    try:
+        return body.decode("utf-8").rstrip("\r\n")
+    except UnicodeDecodeError as error:
+        raise Mumble("the service response was not UTF-8") from error
 
 
 @ad_checker
 def check(context: AdContext) -> None:
-    expect_text(context, "/health", "ok")
-    expect_text(context, "/flag", context.flag)
+    if http_get(context, "/health") != "ok":
+        raise Mumble("the health endpoint did not return ok")
+    if http_get(context, "/flag") != context.flag:
+        raise Mumble("the flag endpoint did not return this round's flag")
 
 
 if __name__ == "__main__":
     raise SystemExit(check())
 ```
 
+For another TCP service, replace `http_get` with a bounded implementation of
+that service's protocol. Raise `Offline` when the target cannot complete the
+exchange and `Mumble` when it responds but violates the expected protocol or
+content. Do not add a generic protocol to `lib.py`.
+
 `@ad_checker` turns the decorated function into a zero-argument entry point. It
 creates an `AdContext` from `RSCTF_*`, catches the documented exceptions, and
-returns the correct rsctf exit code. `expect_text` makes a bounded HTTP request
-to the supplied target and requires an exact response. For a structured or
-custom protocol check, use `get_text` and raise `Mumble` when parsing or
-validation fails.
-
-KotH uses the matching context and decorator, without a flag assertion:
+returns the correct rsctf exit code. KotH uses the same shape with `KothContext`
+and `@koth_checker`, but it must not assert a flag or touch `/koth/king`. Its
+checked-in `run.py` defines its own typed `http_get` as above, followed by this
+decorated check:
 
 ```python
-from lib import KothContext, expect_text, koth_checker
+from lib import KothContext, Mumble, koth_checker
 
 
 @koth_checker
 def check(context: KothContext) -> None:
-    expect_text(context, "/health", "ok")
+    if http_get(context, "/health") != "ok":
+        raise Mumble("the health endpoint did not return ok")
 
 
 if __name__ == "__main__":
     raise SystemExit(check())
 ```
 
-Copy the complete `checker/` directory from the closest example, then edit only
-the challenge-specific assertions in `run.py`. Keep `lib.py` and `run.py`
-together; do not copy only the entry point.
+Copy the complete `checker/` directory from the closest example, then edit the
+protocol exchange and challenge-specific assertions in `run.py`. Keep `lib.py`
+and `run.py` together; do not copy only the entry point. Neither file needs a
+third-party dependency.
 
 ## Sandbox rules
 
@@ -103,8 +148,9 @@ together; do not copy only the entry point.
   import.
 - Set a short request timeout. The checker has one outer deadline, and an outer
   timeout becomes Offline.
-- Network access is confined to exactly the supplied target IP and port. Do not
-  follow redirects or call a database, DNS API, peer service, or second port.
+- TCP network access is confined to exactly the supplied target IP and port. Do
+  not follow redirects or call a database, DNS API, peer service, or second
+  port.
 - The checker source and venv are read-only. `HOME` and `TMPDIR` point to a small
   temporary writable directory.
 - Do not shell out to `curl` or other binaries. The sandbox does not provide a
@@ -129,7 +175,7 @@ would bypass the platform's delivery path.
 
 KotH is different: it has no flag environment. rsctf reads `/koth/king` before
 and after the custom checker and performs ownership attribution itself. A KotH
-checker should verify a normal health/functionality endpoint without reading or
+checker should verify a normal health/functionality exchange without reading or
 modifying that marker.
 
 Keep a prepared checker beside every enabled A&D and KotH challenge. The TCP

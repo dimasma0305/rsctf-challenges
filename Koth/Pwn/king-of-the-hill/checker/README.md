@@ -1,10 +1,12 @@
 # King-of-the-Hill checker template
 
 Copy both `lib.py` and `run.py`; the checker needs both dependency-free files.
-`lib.py` provides `KothContext`, verdict exceptions, `get_text`, `expect_text`, and
-`@koth_checker`. The decorated function in `run.py` contains only the hill's
-health assertions, while the decorator validates `RSCTF_*` and maps outcomes to
-rsctf exit codes. Do not add `requirements.txt` or external packages.
+`lib.py` provides the protocol-neutral `KothContext`, verdict exceptions, and
+`@koth_checker`. This demo's bounded HTTP request code and hill-health assertion
+live in `run.py`. Replace its `http_get` function when the hill uses raw TCP,
+binary framing, or another custom TCP protocol; the decorator still validates
+`RSCTF_*` and maps outcomes to rsctf exit codes. Do not add `requirements.txt`
+or external packages.
 
 KotH checkers receive the target and round metadata, but no `RSCTF_FLAG`.
 rsctf owns the capability-token marker protocol: it reads `/koth/king` before

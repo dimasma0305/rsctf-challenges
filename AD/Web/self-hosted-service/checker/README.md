@@ -1,10 +1,12 @@
 # Self-hosted checker template
 
 Copy both `lib.py` and `run.py`; they form one dependency-free checker template.
-`lib.py` provides `AdContext`, verdict exceptions, `get_text`, `expect_text`, and
-`@ad_checker`. The decorated function in `run.py` contains only this service's
-assertions, while the decorator validates `RSCTF_*` and maps outcomes to rsctf
-exit codes. Do not add `requirements.txt` or external packages.
+`lib.py` provides the protocol-neutral `AdContext`, verdict exceptions, and
+`@ad_checker`. This demo's bounded HTTP request code and service assertions live
+in `run.py`. Replace its `http_get` function when your service uses raw TCP,
+binary framing, or another custom TCP protocol; the decorator still validates
+`RSCTF_*` and maps outcomes to rsctf exit codes. Do not add `requirements.txt`
+or external packages.
 
 The checker contract is identical for managed and BYOC services. rsctf points
 `RSCTF_TARGET_IP` and `RSCTF_TARGET_PORT` at the current tunnel relay, while the
