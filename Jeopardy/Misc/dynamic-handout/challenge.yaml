@@ -1,0 +1,26 @@
+# This manifest demonstrates the current DynamicAttachment schema, but rsctf's
+# importer does not yet assign an imported flag/attachment row to each team.
+# It will import disabled; keep it disabled. See the repository README.
+name: "Dynamic Attachment (illustrative): Per-Team Bundle"
+author: "rsctf documentation team"
+description: |
+  Illustrative schema for a challenge whose file and flag should differ by team.
+
+  Current rsctf repository imports do not complete the per-team assignment step,
+  so this challenge is documentation only and must remain disabled.
+type: DynamicAttachment
+category: Misc
+minScoreRate: 0.30
+difficulty: 4
+
+hints:
+  - "Do not enable this example on the current importer."
+
+# These rows are imported, but currently remain unassigned to GameInstances.
+# They are intentionally public and are not production secrets.
+flags:
+  - "rsctf{dynamic_attachment_demo_a}"
+  - "rsctf{dynamic_attachment_demo_b}"
+
+# A directory with multiple files is packaged as a ZIP by the importer.
+provide: dist

@@ -1,0 +1,30 @@
+# A KingOfTheHill challenge owns one shared container. Teams receive control
+# tokens from rsctf and compete to place their token in /koth/king.
+name: "King of the Hill Demo: Claim Marker"
+author: "rsctf documentation team"
+description: |
+  Obtain your current KotH token, URL-encode it, and send it to:
+
+      http://HILL/claim?token=YOUR_TOKEN
+
+  The demo service writes the token to /koth/king. rsctf reads that file each tick
+  and attributes the hill to the team whose current token matches it.
+type: KingOfTheHill
+category: Pwn
+disableBloodBonus: true
+
+container:
+  # containerImage is intentionally omitted. Repository Bindings auto-builds
+  # ./src/Dockerfile, which creates the shared writable /koth marker directory.
+  memoryLimit: 64
+  cpuCount: 1
+  storageLimit: 128
+  exposePort: 8080
+  enableTrafficCapture: false
+
+ad:
+  # No checkerImage and no checker/ directory: rsctf uses its built-in TCP probe.
+  allowEgress: false
+  allowSelfReset: false
+  sshRequiresFlag: false
+  selfHosted: false

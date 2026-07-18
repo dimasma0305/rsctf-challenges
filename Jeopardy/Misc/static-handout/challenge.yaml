@@ -1,0 +1,27 @@
+# Every team receives the same file and submits one of the static flags below.
+name: "Static Attachment: Welcome File"
+author: "rsctf documentation team"
+description: |
+  Download the attached text file, read the final line, and submit the flag.
+
+  This is the smallest useful repository-binding challenge: no container,
+  checker, or external service is required.
+type: StaticAttachment
+category: Misc
+
+# Dynamic scoring defaults to 1000 points in the current importer. These values
+# control how far and how quickly that score decays as teams solve the challenge.
+minScoreRate: 0.25
+difficulty: 5
+submissionLimit: 10
+disableBloodBonus: false
+
+hints:
+  - "The attachment is a plain UTF-8 text file."
+
+# Public documentation value: replace it before enabling a real challenge.
+flags:
+  - "rsctf{static_attachment_demo_replace_me}"
+
+# A directory with one regular file is attached as that file, not as a ZIP.
+provide: dist

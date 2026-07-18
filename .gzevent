@@ -1,0 +1,36 @@
+# One .gzevent creates one rsctf game. Challenge discovery is scoped to this
+# file's directory, so every challenge.yaml in this repository belongs to it.
+title: "rsctf Repository Binding Demo"
+
+# Start hidden. Import the repository, inspect it as an organizer, and set the
+# real schedule before changing this in the admin UI.
+hidden: true
+summary: "Safe-by-default examples of every challenge type supported by rsctf."
+content: |
+  This hidden event is generated from dimasma0305/rsctf-challenges.
+
+  It is documentation and a staging fixture, not a ready-made public contest.
+  Replace every public demo flag, inspect build logs, and test with normal player
+  accounts before enabling or publishing anything.
+
+# New joins require organizer approval. Practice mode makes staging easier after
+# the event window; neither setting makes an unreviewed challenge safe by itself.
+acceptWithoutReview: false
+practiceMode: true
+teamMemberCountLimit: 4
+containerCountLimit: 3
+
+writeupRequired: false
+writeupNote: "No writeup is required for this documentation event."
+
+# Event-wide Attack & Defense defaults. These are applied only when this game is
+# first created; rescans preserve later edits made by an organizer.
+ad:
+  tickSeconds: 120
+  flagLifetimeTicks: 5
+  warmupSeconds: 300
+  resetCooldownMinutes: 10
+  allowSnapshotDownload: false
+  snapshotRetentionDays: 1
+  getflagWindowFraction: 0.5
+  minGracePeriodSeconds: 15

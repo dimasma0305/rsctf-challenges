@@ -1,0 +1,6 @@
+Welcome to the rsctf repository-binding demo.
+
+The same file is delivered to every team because this is a StaticAttachment.
+For a real event, never commit a production flag to a public repository.
+
+Demo flag: rsctf{static_attachment_demo_replace_me}

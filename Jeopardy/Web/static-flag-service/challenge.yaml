@@ -1,0 +1,27 @@
+# A StaticContainer uses a server-side static flag. enableSharedContainer asks
+# rsctf to reuse one challenge-owned container for every team.
+name: "Static Container: Shared Flag Service"
+author: "rsctf documentation team"
+description: |
+  Start the shared instance and open its HTTP endpoint. The response contains the
+  same static flag for every team.
+
+  The tiny service reads RSCTF_FLAG, which rsctf injects when it creates the
+  container. Replace the public demo flag before enabling this challenge.
+type: StaticContainer
+category: Web
+minScoreRate: 0.25
+difficulty: 3
+
+flags:
+  - "rsctf{static_container_demo_replace_me}"
+
+container:
+  # containerImage is intentionally omitted. Repository Bindings auto-builds
+  # ./src/Dockerfile and records the resulting immutable local image.
+  memoryLimit: 64
+  cpuCount: 1
+  storageLimit: 128
+  exposePort: 8080
+  enableTrafficCapture: false
+  enableSharedContainer: true

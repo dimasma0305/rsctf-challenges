@@ -1,0 +1,28 @@
+# A DynamicContainer gets one isolated container and flag per participation.
+name: "Dynamic Container: Personal Flag Service"
+author: "rsctf documentation team"
+description: |
+  Create your instance and open its HTTP endpoint. rsctf derives a team-specific
+  flag from this challenge's flagTemplate and injects it as RSCTF_FLAG.
+
+  Another team's flag should not solve your instance.
+type: DynamicContainer
+category: Web
+minScoreRate: 0.25
+difficulty: 4
+submissionLimit: 20
+
+# Supported placeholders are [TEAM_HASH], [GUID], and [UUID]. TEAM_HASH makes a
+# stable per-team/per-challenge value; GUID and UUID generate a fresh value.
+flagTemplate: "rsctf{dynamic_[TEAM_HASH]}"
+
+container:
+  # containerImage is intentionally omitted. Repository Bindings auto-builds
+  # ./src/Dockerfile, whose app follows the RSCTF_FLAG contract.
+  memoryLimit: 64
+  cpuCount: 1
+  storageLimit: 128
+  exposePort: 8080
+  enableTrafficCapture: false
+  # This field is ignored for DynamicContainer; every team needs its own instance.
+  enableSharedContainer: false
