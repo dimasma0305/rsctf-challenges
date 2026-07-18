@@ -1,7 +1,8 @@
-"""Intentionally vulnerable platform-hosted A&D demo service.
+"""Intentionally vulnerable self-hosted (BYOC) A&D service.
 
-rsctf writes the rotating flag to RSCTF_FLAG_FILE before each checker pass.
-This service reads the file on every request so it never caches an old round.
+The rsctf BYOC agent atomically refreshes RSCTF_FLAG_FILE every round. Reading
+that file per request is the service-side contract; RSCTF_FLAG is not suitable
+because a container environment cannot change after startup.
 """
 
 import os
@@ -14,7 +15,6 @@ FLAG_FILE = Path(os.environ.get("RSCTF_FLAG_FILE", "/run/rsctf/flag"))
 
 
 def read_current_flag() -> str:
-    """Read the current round instead of caching the creation-time environment."""
     try:
         return FLAG_FILE.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
@@ -23,14 +23,14 @@ def read_current_flag() -> str:
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802 - required by BaseHTTPRequestHandler
-        request = urlsplit(self.path)
+        path = urlsplit(self.path).path
         status = 200
-        if request.path == "/health":
+        if path == "/health":
             body = b"ok\n"
-        elif request.path == "/flag":
+        elif path == "/secret":
             body = (read_current_flag() + "\n").encode()
-        elif request.path == "/":
-            body = b"rsctf A&D demo: inspect /flag\n"
+        elif path == "/":
+            body = b"rsctf BYOC demo: find the vulnerable /secret endpoint\n"
         else:
             status = 404
             body = b"not found\n"

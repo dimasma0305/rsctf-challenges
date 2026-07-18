@@ -21,7 +21,5 @@ container:
   # ./src/Dockerfile and records the resulting immutable local image.
   memoryLimit: 64
   cpuCount: 1
-  storageLimit: 128
   exposePort: 8080
-  enableTrafficCapture: false
   enableSharedContainer: true

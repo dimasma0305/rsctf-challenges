@@ -18,13 +18,9 @@ container:
   # ./src/Dockerfile, which creates the shared writable /koth marker directory.
   memoryLimit: 64
   cpuCount: 1
-  storageLimit: 128
   exposePort: 8080
-  enableTrafficCapture: false
 
 ad:
-  # No checkerImage and no checker/ directory: rsctf uses its built-in TCP probe.
+  # Repository Bindings prepares checker/run.py; its /health request proves more
+  # than the built-in TCP-connect fallback.
   allowEgress: false
-  allowSelfReset: false
-  sshRequiresFlag: false
-  selfHosted: false

@@ -101,6 +101,13 @@ const TYPES = [
   'KingOfTheHill',
 ]
 
+const EXPECTED_TYPE_COUNTS = new Map(
+  TYPES.map((type) => [type, type === 'AttackDefense' ? 2 : 1]),
+)
+
+const EXPECTED_CHALLENGE_COUNT = [...EXPECTED_TYPE_COUNTS.values()]
+  .reduce((total, count) => total + count, 0)
+
 const CATEGORIES = new Set([
   'Misc',
   'Crypto',
@@ -135,6 +142,9 @@ function walk(root) {
     const current = stack.pop()
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const target = resolve(current, entry.name)
+      if (entry.isDirectory() && (entry.name === '.git' || entry.name === '__pycache__')) {
+        continue
+      }
       if (entry.isSymbolicLink()) {
         files.push(target)
       } else if (entry.isDirectory()) {
@@ -391,12 +401,13 @@ function checkChecker(file, model) {
   const hasChecker = existsSync(checkerRoot)
   const checkerImage = model.ad?.checkerImage
 
+  if (model.type === 'AttackDefense' && typeof model.ad?.selfHosted !== 'boolean') {
+    reportError(file, 'AttackDefense example must explicitly set ad.selfHosted to true or false')
+  }
+
   if (!hasChecker) {
-    if (model.type === 'AttackDefense' && !checkerImage) {
-      reportError(file, 'AttackDefense example must include checker/run.py or checkerImage')
-    }
-    if (model.type === 'KingOfTheHill' && !checkerImage) {
-      notices.push(`${relative(ROOT, file)}: uses rsctf's built-in TCP health probe`)
+    if (model.type === 'AttackDefense' || model.type === 'KingOfTheHill') {
+      reportError(file, `${model.type} example must include checker/run.py`)
     }
     return
   }
@@ -405,19 +416,39 @@ function checkChecker(file, model) {
   if (checkerFiles.some((candidate) => candidate.endsWith(`${sep}requirements.txt`))) {
     reportError(file, 'checker requirements.txt is forbidden by the current importer')
   }
-  const entry = [
-    resolve(checkerRoot, 'run.py'),
-    resolve(checkerRoot, 'src', 'run.py'),
-  ].find(existsSync)
-  if (!entry) {
-    reportError(file, 'checker must provide checker/run.py or checker/src/run.py')
+  const entry = resolve(checkerRoot, 'run.py')
+  if (!existsSync(entry)) {
+    reportError(file, 'checker must provide checker/run.py')
     return
   }
+  const readme = resolve(checkerRoot, 'README.md')
+  if (!existsSync(readme) || readFileSync(readme, 'utf8').trim() === '') {
+    reportError(file, 'checker must include a non-empty checker/README.md')
+  }
   const source = readFileSync(entry, 'utf8')
-  for (const variable of ['RSCTF_TARGET_IP', 'RSCTF_TARGET_PORT', 'RSCTF_FLAG']) {
+  for (const variable of [
+    'RSCTF_ACTION',
+    'RSCTF_TARGET_IP',
+    'RSCTF_TARGET_PORT',
+    'RSCTF_ROUND',
+    'RSCTF_TEAM_ID',
+    'RSCTF_CHALLENGE_ID',
+  ]) {
     if (!source.includes(variable)) {
       reportError(file, `checker entrypoint does not reference ${variable}`)
     }
+  }
+  if (model.type === 'AttackDefense' && !source.includes('RSCTF_FLAG')) {
+    reportError(file, 'AttackDefense checker entrypoint does not reference RSCTF_FLAG')
+  }
+  if (
+    model.type === 'KingOfTheHill'
+    && (
+      /required\s*\(\s*['"]RSCTF_FLAG['"]\s*\)/.test(source)
+      || /os\.environ\s*\[\s*['"]RSCTF_FLAG['"]\s*\]/.test(source)
+    )
+  ) {
+    reportError(file, 'KingOfTheHill checker must not require RSCTF_FLAG')
   }
   if (checkerImage) {
     reportError(file, 'local checker source and checkerImage must not both be configured')
@@ -491,7 +522,12 @@ function validateChallenge(file, model) {
       reportError(file, 'containerImage must be omitted so Repository Bindings auto-builds ./src/Dockerfile')
     }
     for (const key of ['memoryLimit', 'cpuCount', 'storageLimit']) {
-      if (!positiveInteger(container[key])) reportError(file, `container.${key} must be positive`)
+      if (container[key] !== undefined && !positiveInteger(container[key])) {
+        reportError(file, `container.${key} must be positive`)
+      }
+    }
+    if (container.storageLimit !== undefined) {
+      reportError(file, 'omit container.storageLimit from runnable examples; it is not enforced')
     }
     if (!positiveInteger(container.exposePort) || container.exposePort > 65535) {
       reportError(file, 'container.exposePort must be in 1..65535')
@@ -500,6 +536,15 @@ function validateChallenge(file, model) {
     const app = resolve(dirname(file), 'src', 'app.py')
     if (!existsSync(dockerfile) || !existsSync(app)) {
       reportError(file, 'auto-built sample image must provide src/Dockerfile and src/app.py')
+    }
+    if (
+      container.enableTrafficCapture !== undefined
+      && (model.type !== 'AttackDefense' || model.ad?.selfHosted === true)
+    ) {
+      reportError(file, 'container.enableTrafficCapture applies only to platform-hosted A&D')
+    }
+    if (container.enableSharedContainer !== undefined && model.type !== 'StaticContainer') {
+      reportError(file, 'container.enableSharedContainer applies only to StaticContainer')
     }
     if (
       model.type === 'KingOfTheHill'
@@ -512,7 +557,25 @@ function validateChallenge(file, model) {
     reportError(file, `${model.type} must not define a container block`)
   }
 
-  if (model.ad !== undefined) checkKnownKeys(model.ad, AD_KEYS, file, 'ad')
+  if (model.ad !== undefined && checkKnownKeys(model.ad, AD_KEYS, file, 'ad')) {
+    if (model.ad.sshRequiresFlag !== undefined) {
+      reportError(file, 'omit ad.sshRequiresFlag from runnable examples; it is not enforced')
+    }
+    if (model.type === 'KingOfTheHill') {
+      for (const key of ['allowSelfReset', 'selfHosted']) {
+        if (model.ad[key] !== undefined) {
+          reportError(file, `ad.${key} does not apply to KingOfTheHill`)
+        }
+      }
+    }
+    if (model.type === 'AttackDefense' && model.ad.selfHosted === true) {
+      for (const key of ['allowEgress', 'allowSelfReset']) {
+        if (model.ad[key] !== undefined) {
+          reportError(file, `ad.${key} does not constrain a self-hosted service`)
+        }
+      }
+    }
+  }
   if (model.type === 'AttackDefense' || model.type === 'KingOfTheHill') {
     if (!isRecord(model.ad)) reportError(file, `${model.type} must define an ad block`)
     checkChecker(file, model)
@@ -525,10 +588,21 @@ function validateChallenge(file, model) {
       reportError(file, `${model.type} must include at least one static flag`)
     }
   }
+  if (model.type === 'AttackDefense') {
+    if (typeof model.flagTemplate !== 'string' || !/\[(?:TEAM_HASH|GUID)\]/.test(model.flagTemplate)) {
+      reportError(file, 'AttackDefense must use TEAM_HASH or GUID in flagTemplate')
+    }
+  }
+  if (model.type === 'AttackDefense' || model.type === 'KingOfTheHill') {
+    if (model.flags !== undefined) reportError(file, `${model.type} must not define static flags`)
+  }
+  if (model.type === 'KingOfTheHill' && model.flagTemplate !== undefined) {
+    reportError(file, 'KingOfTheHill must not define flagTemplate')
+  }
   if (model.type === 'DynamicContainer') {
     const template = model.container?.flagTemplate ?? model.flagTemplate
-    if (typeof template !== 'string' || !/\[(?:TEAM_HASH|GUID|UUID)\]/.test(template)) {
-      reportError(file, 'DynamicContainer must use a supported flagTemplate placeholder')
+    if (typeof template !== 'string' || !/\[(?:TEAM_HASH|GUID)\]/.test(template)) {
+      reportError(file, 'DynamicContainer must use TEAM_HASH or GUID in flagTemplate')
     }
   }
   if (model.type === 'DynamicAttachment') {
@@ -554,16 +628,20 @@ function main() {
       file.endsWith(`${sep}challenge.yaml`) || file.endsWith(`${sep}challenge.yml`),
     )
   }
-  if (challengeFiles.length !== TYPES.length) {
-    errors.push(`expected exactly ${TYPES.length} challenge manifests, found ${challengeFiles.length}`)
+  if (challengeFiles.length !== EXPECTED_CHALLENGE_COUNT) {
+    errors.push(
+      `expected exactly ${EXPECTED_CHALLENGE_COUNT} challenge manifests, found ${challengeFiles.length}`,
+    )
   }
 
   const foundTypes = []
+  const attackDefenseHostingModes = []
   const names = new Map()
   for (const file of challengeFiles) {
     const model = parseFile(file)
     const type = validateChallenge(file, model)
     if (type) foundTypes.push(type)
+    if (type === 'AttackDefense') attackDefenseHostingModes.push(model.ad?.selfHosted)
     if (typeof model?.name === 'string') {
       if (names.has(model.name)) {
         reportError(file, `duplicate challenge name also used by ${relative(ROOT, names.get(model.name))}`)
@@ -572,9 +650,19 @@ function main() {
     }
   }
 
-  for (const type of TYPES) {
+  for (const [type, expectedCount] of EXPECTED_TYPE_COUNTS) {
     const count = foundTypes.filter((candidate) => candidate === type).length
-    if (count !== 1) errors.push(`expected exactly one ${type} manifest, found ${count}`)
+    if (count !== expectedCount) {
+      errors.push(`expected exactly ${expectedCount} ${type} manifest(s), found ${count}`)
+    }
+  }
+  for (const selfHosted of [false, true]) {
+    const count = attackDefenseHostingModes.filter((candidate) => candidate === selfHosted).length
+    if (count !== 1) {
+      errors.push(
+        `expected exactly one AttackDefense manifest with ad.selfHosted: ${selfHosted}, found ${count}`,
+      )
+    }
   }
 
   for (const notice of notices) console.log(`NOTICE: ${notice}`)
@@ -584,7 +672,9 @@ function main() {
     process.exitCode = 1
     return
   }
-  console.log(`OK: validated one event and all ${TYPES.length} current challenge types.`)
+  console.log(
+    `OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`,
+  )
   console.log('OK: manifests use known keys, safe attachments, local src/Dockerfile builds, and supported checker layout.')
 }
 

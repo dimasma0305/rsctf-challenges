@@ -1,3 +1,5 @@
+# Replace this with a pinned internal base when the build host must avoid
+# Docker Hub.
 FROM python:3.12-alpine
 
 WORKDIR /app

@@ -1,0 +1,31 @@
+# Self-hosted AttackDefense (BYOC) example. rsctf builds the service image, but
+# each team downloads and runs it on its own Docker host behind an outbound
+# tunnel. The platform never launches this service container itself.
+name: "Attack & Defense BYOC: Flag File Service"
+author: "rsctf documentation team"
+description: |
+  Run the supplied service on your own Docker host through rsctf's BYOC setup.
+  The relay writes each rotating flag to /shared/flag and exposes your service
+  to the checker without requiring a public IP or inbound firewall rule.
+
+  The demo deliberately exposes the flag at /secret. Replace that behavior with
+  a real vulnerability before using this pattern for a competition.
+type: AttackDefense
+category: Web
+disableBloodBonus: true
+
+# The engine expands both placeholders for each team and round.
+flagTemplate: "rsctf{byoc_[TEAM_HASH]_[GUID]}"
+
+container:
+  # containerImage is intentionally omitted. Repository Bindings builds ./src,
+  # and the authenticated BYOC image endpoint streams that result to each team.
+  # Resource policies are intentionally absent: rsctf cannot constrain the
+  # service after a team runs it on its own host.
+  exposePort: 8080
+
+ad:
+  # Repository Bindings prepares checker/run.py automatically.
+  # Managed-container egress, reset, traffic-capture, and resource settings do
+  # not apply because rsctf does not own the team's host.
+  selfHosted: true

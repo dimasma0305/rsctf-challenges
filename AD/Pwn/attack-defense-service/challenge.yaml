@@ -1,33 +1,35 @@
 # Platform-hosted AttackDefense example. rsctf launches one service per accepted
 # team, runs checker/run.py each round, and exposes team targets through A&D.
-name: "Attack & Defense Demo: Plant and Read"
+name: "Attack & Defense Demo: Flag File Service"
 author: "rsctf documentation team"
 description: |
   Defend your service and retrieve rotating flags from the other teams.
 
-  The checker plants the current round flag through /plant and verifies it through
-  /flag. Both endpoints are intentionally unauthenticated: this is an educational
-  smoke test for A&D orchestration, not a production challenge.
+  rsctf writes the current round flag to RSCTF_FLAG_FILE, and the checker verifies
+  it through /flag. That endpoint is intentionally unauthenticated: this is an
+  educational smoke test for A&D orchestration, not a production challenge.
 type: AttackDefense
 category: Pwn
 
 # A&D score comes from attacks, defense, and SLA rather than jeopardy decay.
 disableBloodBonus: true
 
+# A&D flags rotate by round. TEAM_HASH is stable for one team/challenge, while
+# GUID supplies fresh entropy each time the engine generates a flag.
+flagTemplate: "rsctf{managed_[TEAM_HASH]_[GUID]}"
+
 container:
   # containerImage is intentionally omitted. Repository Bindings auto-builds
   # ./src/Dockerfile when this challenge is imported.
   memoryLimit: 64
   cpuCount: 1
-  storageLimit: 128
   exposePort: 8080
   enableTrafficCapture: false
 
 ad:
-  # checkerImage is omitted. The importer prepares checker/run.py in a sandboxed,
-  # dependency-free Python venv and stores that prepared directory on the challenge.
+  # The importer prepares checker/run.py in a sandboxed, dependency-free Python
+  # environment and stores that prepared directory on the challenge.
   allowEgress: false
   allowSelfReset: true
-  sshRequiresFlag: false
   # false means rsctf hosts the per-team service. true selects the BYOC workflow.
   selfHosted: false

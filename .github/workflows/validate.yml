@@ -27,6 +27,12 @@ jobs:
       - name: Validate event and challenge manifests
         run: node scripts/validate.mjs
 
+      - name: Compile Python examples
+        run: python3 -m compileall -q AD Koth Jeopardy
+
+      - name: Exercise checker verdicts
+        run: python3 scripts/test-checkers.py
+
   containers:
     name: Build ${{ matrix.name }}
     needs: manifests
@@ -42,6 +48,8 @@ jobs:
             context: Jeopardy/Web/dynamic-flag-service/src
           - name: attack-defense-service
             context: AD/Pwn/attack-defense-service/src
+          - name: self-hosted-service
+            context: AD/Web/self-hosted-service/src
           - name: king-of-the-hill
             context: Koth/Pwn/king-of-the-hill/src
     steps:

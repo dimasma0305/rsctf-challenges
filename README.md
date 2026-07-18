@@ -2,7 +2,7 @@
 
 This repository is a complete, safe-by-default example for rsctf's **Admin →
 Repository Bindings** feature. Bind it and rsctf will find the root `.gzevent`,
-create one hidden game, and import the six nested challenge manifests.
+create one hidden game, and import the seven nested challenge manifests.
 
 The example is intentionally small and readable. Container manifests omit
 `containerImage`, so Repository Bindings builds each adjacent `src/Dockerfile`
@@ -17,31 +17,40 @@ pulled from Docker Hub.
 | `Jeopardy/Misc/dynamic-handout` | `DynamicAttachment` | The current YAML shape and a multi-file attachment | **No** — see the current limitation below |
 | `Jeopardy/Web/static-flag-service` | `StaticContainer` | One shared HTTP container with a static injected flag | Yes, after a runtime test and flag replacement |
 | `Jeopardy/Web/dynamic-flag-service` | `DynamicContainer` | One HTTP container per team using `RSCTF_FLAG` | Yes, after a runtime test |
-| `AD/Pwn/attack-defense-service` | `AttackDefense` | Per-team service, rotating flag plant/read checker, and A&D settings | Demo only; validate the entire A&D network first |
+| `AD/Pwn/attack-defense-service` | `AttackDefense` | Platform-hosted per-team service, rotating flag file, and functional checker | Demo only; validate the entire A&D network first |
+| `AD/Web/self-hosted-service` | `AttackDefense` | BYOC service image, outbound tunnel, rotating flag file, and functional checker | Demo only; validate the BYOC relay first |
 | `Koth/Pwn/king-of-the-hill` | `KingOfTheHill` | Shared hill and `/koth/king` control marker | Demo only; Docker is currently required for reliable marker reads |
 
 Repository imports always create challenges with `isEnabled = false`. This
 event is also created with `hidden: true`, so importing it does not publish a
 live competition. Trusted repository imports do mark the challenge review state
-as active. During the scan, this example prepares the local dependency-free A&D
-checker and builds the four container challenge images from their checked-in
+as active. During the scan, this example prepares three dependency-free A&D/KotH
+checkers and builds the five container challenge images from their checked-in
 source.
+
+New challenge authors should start with [`CONFIGURATION.md`](CONFIGURATION.md)
+and [`CHECKERS.md`](CHECKERS.md). The active manifests are deliberately
+commented as copyable templates, including both A&D hosting modes.
 
 ## Directory layout
 
 ```text
 rsctf-challenges/
+├── .gitignore
 ├── .gzevent
 ├── .github/workflows/validate.yml
 ├── AD/
-│   └── Pwn/attack-defense-service/{challenge.yaml,checker/,src/}
+│   ├── Pwn/attack-defense-service/{challenge.yaml,checker/,src/}
+│   └── Web/self-hosted-service/{challenge.yaml,checker/,src/}
 ├── Koth/
-│   └── Pwn/king-of-the-hill/{challenge.yaml,src/}
+│   └── Pwn/king-of-the-hill/{challenge.yaml,checker/,src/}
 ├── Jeopardy/
 │   ├── Misc/{static-handout,dynamic-handout}/
 │   └── Web/{static-flag-service,dynamic-flag-service}/
+├── CHECKERS.md
+├── CONFIGURATION.md
 ├── LICENSE.txt
-├── scripts/validate.mjs
+├── scripts/{validate.mjs,test-checkers.py}
 └── README.md
 ```
 
@@ -66,6 +75,15 @@ build contexts, invalid ports/resources, or an unsupported checker layout. It
 reports the current `DynamicAttachment` behavior as an expected limitation
 rather than pretending that the example is playable.
 
+Run the dependency-free checker smoke tests separately:
+
+```sh
+python3 scripts/test-checkers.py
+```
+
+They launch the bundled services on loopback and verify the `0` OK, `1` Mumble,
+`2` Offline, and `3` InternalError exit-code contract.
+
 ## Import it from GitHub
 
 1. Sign in as an administrator and open **Admin → Repository Bindings**. On the
@@ -76,8 +94,8 @@ rather than pretending that the example is playable.
 4. For a private fork, use a fine-grained GitHub token with read-only
    repository contents access unless you intentionally need push-back.
 5. Run **Scan now** and inspect the scan result. It should report one event and
-   six imported challenges.
-6. Open the newly created hidden game and verify that all four container builds
+   seven imported challenges.
+6. Open the newly created hidden game and verify that all five container builds
    completed successfully. Set its real schedule, review every flag, build log,
    checker, and runtime, then enable only the challenges you tested.
 
@@ -107,7 +125,7 @@ All files here are tiny text examples and contain no secrets.
 
 ## Container image behavior
 
-The four container-based manifests intentionally omit `containerImage`. During
+The five container-based manifests intentionally omit `containerImage`. During
 a trusted Repository Bindings scan, rsctf finds `src/Dockerfile`, stores the
 complete challenge package as the immutable build source, selects `src/` as the
 Docker context, generates an internal `rsctf/<game>/<challenge>:latest` tag, and
@@ -138,20 +156,19 @@ variable. That is the current rsctf contract for normal container challenges.
 
 ## A&D checker contract
 
-`AD/Pwn/attack-defense-service/checker/run.py` uses only Python's standard library,
-so importer preparation does not need `requirements.txt` (which rsctf rejects).
-rsctf invokes it with:
+Both A&D examples include a standard-library `checker/run.py`. rsctf delivers
+the rotating flag to the service first, then gives the checker the same expected
+value as `RSCTF_FLAG`. The checker retrieves and compares it through
+player-visible behavior without changing service state.
 
-- `RSCTF_TARGET_IP` and `RSCTF_TARGET_PORT`
-- `RSCTF_ROUND`, `RSCTF_TEAM_ID`, and `RSCTF_CHALLENGE_ID`
-- `RSCTF_FLAG` for the current A&D round
+The platform-hosted service reads its writable `RSCTF_FLAG_FILE` inside the
+managed container. The self-hosted service reads `/shared/flag`, which the BYOC
+agent updates through the outbound tunnel. The checker-facing target contract is
+the same in both modes.
 
-The demo checker plants `RSCTF_FLAG` through the service's intentionally
-vulnerable `/plant` endpoint, reads it back through `/flag`, and exits with the
-rsctf checker codes: `0` OK, `1` Mumble, `2` Offline, or `3` InternalError.
-This makes the current round flag retrievable by attackers, but it is an
-educational service, not a production challenge design. It has no authentication
-and is intentionally easy to exploit.
+See [`CHECKERS.md`](CHECKERS.md) for environment variables, the `0` OK / `1`
+Mumble / `2` Offline / `3` InternalError mapping, sandbox constraints, and local
+commands.
 
 A&D additionally requires the rsctf A&D network/VPN, accepted teams, round
 scheduler, container backend, and checker sandbox to be working. Keep the demo
@@ -161,9 +178,11 @@ disabled until a full two-team staging run passes.
 
 The hill accepts a team's current control token at
 `/claim?token=URL_ENCODED_TOKEN` and atomically writes it to `/koth/king`. rsctf
-checks the TCP endpoint, executes into the shared hill container, reads that
-marker, and maps the exact token to its team. There is no custom checker folder,
-so rsctf uses its built-in TCP health probe.
+executes into the shared hill container, reads that marker, and maps the exact
+token to its team. Its custom checker separately verifies
+`/health` without requiring `RSCTF_FLAG` or touching the ownership marker. This
+also satisfies the official scoring-start requirement that every enabled engine
+challenge has a prepared checker.
 
 Current Kubernetes support cannot reliably provide every Docker-style KotH exec
 and networking behavior. Use the Docker backend for this sample unless your

@@ -1,4 +1,4 @@
-"""rsctf A&D checker for the platform-hosted /flag demo service."""
+"""rsctf A&D checker for the self-hosted /secret demo service."""
 
 from dataclasses import dataclass
 from enum import IntEnum
@@ -65,7 +65,6 @@ def load_context() -> Context:
 
 
 def get_text(context: Context, path: str) -> str:
-    """Make one bounded request without redirects or secondary connections."""
     connection = HTTPConnection(
         context.target_ip,
         context.target_port,
@@ -93,7 +92,7 @@ def get_text(context: Context, path: str) -> str:
 def check(context: Context) -> None:
     if get_text(context, "/health") != "ok":
         raise Mumble
-    if get_text(context, "/flag") != context.flag:
+    if get_text(context, "/secret") != context.flag:
         raise Mumble
 
 
@@ -109,7 +108,6 @@ def main() -> int:
     except Mumble:
         return Verdict.MUMBLE
     except Exception:
-        # Checker bugs are infrastructure failures, not team failures.
         return Verdict.INTERNAL_ERROR
     return Verdict.OK
 

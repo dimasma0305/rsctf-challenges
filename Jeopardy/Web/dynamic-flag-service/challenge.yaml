@@ -12,8 +12,8 @@ minScoreRate: 0.25
 difficulty: 4
 submissionLimit: 20
 
-# Supported placeholders are [TEAM_HASH], [GUID], and [UUID]. TEAM_HASH makes a
-# stable per-team/per-challenge value; GUID and UUID generate a fresh value.
+# The generator expands [TEAM_HASH], [GUID], and [UUID], but current challenge
+# validation expects TEAM_HASH or GUID. TEAM_HASH is stable per team/challenge.
 flagTemplate: "rsctf{dynamic_[TEAM_HASH]}"
 
 container:
@@ -21,8 +21,4 @@ container:
   # ./src/Dockerfile, whose app follows the RSCTF_FLAG contract.
   memoryLimit: 64
   cpuCount: 1
-  storageLimit: 128
   exposePort: 8080
-  enableTrafficCapture: false
-  # This field is ignored for DynamicContainer; every team needs its own instance.
-  enableSharedContainer: false

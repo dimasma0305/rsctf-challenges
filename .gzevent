@@ -31,6 +31,8 @@ ad:
   warmupSeconds: 300
   resetCooldownMinutes: 10
   allowSnapshotDownload: false
+  # These three fields are persisted by the current importer but are not yet
+  # consumed by runtime behavior; they remain here to document the full schema.
   snapshotRetentionDays: 1
   getflagWindowFraction: 0.5
   minGracePeriodSeconds: 15

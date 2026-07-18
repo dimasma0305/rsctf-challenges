@@ -1,4 +1,4 @@
-"""rsctf A&D checker for the platform-hosted /flag demo service."""
+"""rsctf health checker for the shared King-of-the-Hill demo."""
 
 from dataclasses import dataclass
 from enum import IntEnum
@@ -20,11 +20,11 @@ class Verdict(IntEnum):
 
 
 class Mumble(Exception):
-    """The target answered, but its behavior was incorrect."""
+    """The hill answered, but its health protocol was incorrect."""
 
 
 class Offline(Exception):
-    """The target could not provide a complete response."""
+    """The hill could not provide a complete response."""
 
 
 @dataclass(frozen=True)
@@ -32,9 +32,7 @@ class Context:
     target_ip: str
     target_port: int
     round_number: int
-    participation_id: int  # RSCTF_TEAM_ID currently contains participation ID.
     challenge_id: int
-    flag: str
 
 
 def required(name: str) -> str:
@@ -54,18 +52,19 @@ def positive_integer(name: str, maximum: int | None = None) -> int:
 def load_context() -> Context:
     if required("RSCTF_ACTION").strip() != "check":
         raise ValueError("unsupported RSCTF_ACTION")
+    if int(required("RSCTF_TEAM_ID")) != 0:
+        raise ValueError("KotH checker expects RSCTF_TEAM_ID=0")
+    if os.environ.get("RSCTF_FLAG") is not None:
+        raise ValueError("KotH checker must not receive RSCTF_FLAG")
     return Context(
         target_ip=str(ip_address(required("RSCTF_TARGET_IP").strip())),
         target_port=positive_integer("RSCTF_TARGET_PORT", 65535),
         round_number=positive_integer("RSCTF_ROUND"),
-        participation_id=positive_integer("RSCTF_TEAM_ID"),
         challenge_id=positive_integer("RSCTF_CHALLENGE_ID"),
-        flag=required("RSCTF_FLAG"),
     )
 
 
 def get_text(context: Context, path: str) -> str:
-    """Make one bounded request without redirects or secondary connections."""
     connection = HTTPConnection(
         context.target_ip,
         context.target_port,
@@ -93,8 +92,6 @@ def get_text(context: Context, path: str) -> str:
 def check(context: Context) -> None:
     if get_text(context, "/health") != "ok":
         raise Mumble
-    if get_text(context, "/flag") != context.flag:
-        raise Mumble
 
 
 def main() -> int:
@@ -109,7 +106,6 @@ def main() -> int:
     except Mumble:
         return Verdict.MUMBLE
     except Exception:
-        # Checker bugs are infrastructure failures, not team failures.
         return Verdict.INTERNAL_ERROR
     return Verdict.OK
 
