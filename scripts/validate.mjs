@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const errors = []
 const notices = []
+const checkerLibraries = []
 
 const EVENT_KEYS = new Set([
   'title',
@@ -421,11 +422,37 @@ function checkChecker(file, model) {
     reportError(file, 'checker must provide checker/run.py')
     return
   }
+  const library = resolve(checkerRoot, 'lib.py')
+  if (!existsSync(library)) {
+    reportError(file, 'checker must provide checker/lib.py beside run.py')
+    return
+  }
   const readme = resolve(checkerRoot, 'README.md')
   if (!existsSync(readme) || readFileSync(readme, 'utf8').trim() === '') {
     reportError(file, 'checker must include a non-empty checker/README.md')
   }
   const source = readFileSync(entry, 'utf8')
+  const librarySource = readFileSync(library, 'utf8')
+  checkerLibraries.push({ file: library, source: librarySource })
+  if (!source.includes('from lib import')) {
+    reportError(file, 'checker/run.py must import reusable helpers from sibling lib.py')
+  }
+  if (!source.includes('raise SystemExit(check())')) {
+    reportError(file, 'checker/run.py must exit with the decorated check() result')
+  }
+  for (const helper of [
+    'class AdContext',
+    'class KothContext',
+    'def get_text',
+    'def expect_text',
+    'def ad_checker',
+    'def koth_checker',
+  ]) {
+    if (!librarySource.includes(helper)) {
+      reportError(file, `checker/lib.py does not provide ${helper}`)
+    }
+  }
+  const contractSource = `${source}\n${librarySource}`
   for (const variable of [
     'RSCTF_ACTION',
     'RSCTF_TARGET_IP',
@@ -434,21 +461,25 @@ function checkChecker(file, model) {
     'RSCTF_TEAM_ID',
     'RSCTF_CHALLENGE_ID',
   ]) {
-    if (!source.includes(variable)) {
-      reportError(file, `checker entrypoint does not reference ${variable}`)
+    if (!contractSource.includes(variable)) {
+      reportError(file, `checker source does not reference ${variable}`)
     }
   }
-  if (model.type === 'AttackDefense' && !source.includes('RSCTF_FLAG')) {
-    reportError(file, 'AttackDefense checker entrypoint does not reference RSCTF_FLAG')
+  if (model.type === 'AttackDefense') {
+    if (!contractSource.includes('RSCTF_FLAG')) {
+      reportError(file, 'AttackDefense checker source does not reference RSCTF_FLAG')
+    }
+    if (!/@ad_checker\s*\ndef check\s*\(/.test(source) || source.includes('@koth_checker')) {
+      reportError(file, 'AttackDefense run.py must decorate check with @ad_checker')
+    }
   }
-  if (
-    model.type === 'KingOfTheHill'
-    && (
-      /required\s*\(\s*['"]RSCTF_FLAG['"]\s*\)/.test(source)
-      || /os\.environ\s*\[\s*['"]RSCTF_FLAG['"]\s*\]/.test(source)
-    )
-  ) {
-    reportError(file, 'KingOfTheHill checker must not require RSCTF_FLAG')
+  if (model.type === 'KingOfTheHill') {
+    if (!/@koth_checker\s*\ndef check\s*\(/.test(source) || source.includes('@ad_checker')) {
+      reportError(file, 'KingOfTheHill run.py must decorate check with @koth_checker')
+    }
+    if (source.includes('RSCTF_FLAG')) {
+      reportError(file, 'KingOfTheHill run.py must not use RSCTF_FLAG')
+    }
   }
   if (checkerImage) {
     reportError(file, 'local checker source and checkerImage must not both be configured')
@@ -664,6 +695,9 @@ function main() {
       )
     }
   }
+  if (new Set(checkerLibraries.map(({ source }) => source)).size !== 1) {
+    errors.push('every checker/lib.py must remain byte-identical')
+  }
 
   for (const notice of notices) console.log(`NOTICE: ${notice}`)
   if (errors.length > 0) {
@@ -675,7 +709,7 @@ function main() {
   console.log(
     `OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`,
   )
-  console.log('OK: manifests use known keys, safe attachments, local src/Dockerfile builds, and supported checker layout.')
+  console.log('OK: manifests use known keys, local builds, and decorated checker/lib.py templates.')
 }
 
 main()

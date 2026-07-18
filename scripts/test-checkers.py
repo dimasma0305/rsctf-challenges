@@ -2,6 +2,7 @@
 """Run the bundled A&D/KotH checkers against their example services."""
 
 from contextlib import ExitStack, contextmanager
+import importlib.util
 import os
 from pathlib import Path
 import socket
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -96,10 +98,35 @@ def expect(checker: Path, expected: int, environment: dict[str, str]) -> None:
         )
 
 
+def test_decorator_guardrails(library: Path) -> None:
+    """Checker bugs must become InternalError instead of escaping the wrapper."""
+    module_name = "rsctf_checker_template_lib"
+    spec = importlib.util.spec_from_file_location(module_name, library)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not import {library}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    @module.ad_checker
+    def exits(_context):
+        raise SystemExit(1)
+
+    @module.ad_checker
+    def returns_a_value(_context):
+        return "invalid"
+
+    environment = checker_environment(1, team_id=1, flag="rsctf{guardrail}")
+    with patch.dict(os.environ, environment, clear=True):
+        if exits() != 3 or returns_a_value() != 3:
+            raise RuntimeError("checker decorator guardrails must return InternalError")
+
+
 def main() -> None:
     managed = ROOT / "AD/Pwn/attack-defense-service"
     byoc = ROOT / "AD/Web/self-hosted-service"
     koth = ROOT / "Koth/Pwn/king-of-the-hill"
+    test_decorator_guardrails(managed / "checker/lib.py")
 
     with tempfile.TemporaryDirectory(prefix="rsctf-checkers-") as temporary:
         temporary_root = Path(temporary)
@@ -149,6 +176,11 @@ def main() -> None:
                 2,
                 checker_environment(unused_port(), team_id=1, flag=managed_flag),
             )
+            expect(
+                managed_checker,
+                3,
+                checker_environment(managed_port, team_id=1),
+            )
             expect(managed_checker, 3, {})
 
             expect(
@@ -166,8 +198,18 @@ def main() -> None:
                 3,
                 checker_environment(koth_port, team_id=0, flag="not-for-koth"),
             )
+            expect(
+                koth / "checker/run.py",
+                3,
+                checker_environment(koth_port, team_id=0, flag=""),
+            )
+            expect(
+                koth / "checker/run.py",
+                3,
+                checker_environment(koth_port, team_id=1),
+            )
 
-    print("OK: checker smoke tests cover OK, Mumble, Offline, and InternalError.")
+    print("OK: checker smoke tests cover all verdicts and decorator guardrails.")
 
 
 if __name__ == "__main__":

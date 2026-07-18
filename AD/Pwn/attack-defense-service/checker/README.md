@@ -1,8 +1,15 @@
 # Platform-hosted checker template
 
-Copy this `checker/` directory beside an `AttackDefense` manifest. Repository
-Bindings prepares `run.py` automatically; do not add a Dockerfile or
-`requirements.txt`.
+Copy this complete `checker/` directory beside an `AttackDefense` manifest.
+Keep `lib.py` and `run.py` together: Repository Bindings detects the entry point
+and prepares both files automatically. Do not add a Dockerfile or
+`requirements.txt`; the template uses only Python's standard library.
+
+`lib.py` owns environment validation, bounded HTTP requests, verdict exceptions,
+`expect_text`, and the `@ad_checker` wrapper. Edit the decorated function in
+`run.py` to describe your service's expected behavior. The decorator creates
+`AdContext`, maps `Mumble`/`Offline`/unexpected failures to exit codes, and makes
+`check()` the zero-argument entry point used at the bottom of the file.
 
 The example checker reads the current flag through the same `/flag` behavior an
 attacker sees. rsctf has already written that round's value to the service's
@@ -16,7 +23,7 @@ printf '%s\n' 'rsctf{local_test}' >/tmp/rsctf-managed-demo-flag
 RSCTF_FLAG_FILE=/tmp/rsctf-managed-demo-flag python3 src/app.py
 ```
 
-Then run the checker from the challenge directory:
+Then run the decorated checker from the challenge directory:
 
 ```sh
 RSCTF_ACTION=check \

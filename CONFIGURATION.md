@@ -112,14 +112,18 @@ independent node-local daemons need a prebuilt immutable registry image instead.
 
 | Key | Import default | Behavior |
 | --- | --- | --- |
-| `checkerImage` | absent | Omit it; concrete checker-container references are rejected, while adjacent `checker/run.py` is prepared automatically |
+| `checkerImage` | absent | Omit it; concrete checker-container references are rejected, while an adjacent `checker/run.py` entry point and its sibling source files are prepared automatically |
 | `allowEgress` | `false` | Controls outbound networking for platform-managed A&D and KotH containers, not checker or BYOC-host egress |
 | `allowSelfReset` | `true` | Player reset for managed A&D; unavailable for BYOC |
 | `sshRequiresFlag` | `false` | Persisted but not currently enforced by SSH authorization; omit it from runnable templates |
 | `selfHosted` | `false` | `true` selects BYOC and is valid only for `AttackDefense` |
 
-Put a dependency-free `checker/run.py` beside every A&D or KotH manifest. The
-importer prepares that local source for the checker sandbox; see
+Put a dependency-free `checker/` directory beside every A&D or KotH manifest.
+Copy both `lib.py` and `run.py` from the closest example: `lib.py` supplies the
+shared contexts, verdicts, HTTP helpers, and `@ad_checker`/`@koth_checker`, while
+`run.py` contains the challenge-specific assertions. The importer detects
+`run.py` and prepares the complete local source directory for the checker
+sandbox; external packages and `requirements.txt` are unsupported. See
 [`CHECKERS.md`](CHECKERS.md).
 
 Use these two A&D examples to compare the hosting modes:

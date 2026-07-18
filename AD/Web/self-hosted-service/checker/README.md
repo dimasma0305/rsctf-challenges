@@ -1,5 +1,11 @@
 # Self-hosted checker template
 
+Copy both `lib.py` and `run.py`; they form one dependency-free checker template.
+`lib.py` provides `AdContext`, verdict exceptions, `get_text`, `expect_text`, and
+`@ad_checker`. The decorated function in `run.py` contains only this service's
+assertions, while the decorator validates `RSCTF_*` and maps outcomes to rsctf
+exit codes. Do not add `requirements.txt` or external packages.
+
 The checker contract is identical for managed and BYOC services. rsctf points
 `RSCTF_TARGET_IP` and `RSCTF_TARGET_PORT` at the current tunnel relay, while the
 team's BYOC agent writes the expected flag to `/shared/flag`. The checker only
@@ -12,7 +18,7 @@ printf '%s\n' 'rsctf{local_test}' >/tmp/rsctf-byoc-demo-flag
 RSCTF_FLAG_FILE=/tmp/rsctf-byoc-demo-flag python3 src/app.py
 ```
 
-Then run the checker from the challenge directory:
+Then run the decorated checker from the challenge directory:
 
 ```sh
 RSCTF_ACTION=check \

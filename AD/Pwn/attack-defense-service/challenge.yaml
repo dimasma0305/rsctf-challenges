@@ -27,8 +27,8 @@ container:
   enableTrafficCapture: false
 
 ad:
-  # The importer prepares checker/run.py in a sandboxed, dependency-free Python
-  # environment and stores that prepared directory on the challenge.
+  # The importer prepares checker/{run.py,lib.py} in a sandboxed, dependency-free
+  # Python environment and stores that prepared directory on the challenge.
   allowEgress: false
   allowSelfReset: true
   # false means rsctf hosts the per-team service. true selects the BYOC workflow.

@@ -26,7 +26,7 @@ event is also created with `hidden: true`, so importing it does not publish a
 live competition. Trusted repository imports do mark the challenge review state
 as active. During the scan, this example prepares three dependency-free A&D/KotH
 checkers and builds the five container challenge images from their checked-in
-source.
+source. Each checker pairs a reusable `lib.py` with a small decorated `run.py`.
 
 New challenge authors should start with [`CONFIGURATION.md`](CONFIGURATION.md)
 and [`CHECKERS.md`](CHECKERS.md). The active manifests are deliberately
@@ -156,9 +156,12 @@ variable. That is the current rsctf contract for normal container challenges.
 
 ## A&D checker contract
 
-Both A&D examples include a standard-library `checker/run.py`. rsctf delivers
-the rotating flag to the service first, then gives the checker the same expected
-value as `RSCTF_FLAG`. The checker retrieves and compares it through
+Both A&D examples include a standard-library-only checker directory. Its
+`lib.py` provides `AdContext`, verdict exceptions, bounded HTTP helpers, and the
+`@ad_checker` decorator; `run.py` contains only the service-specific assertions
+and decorated entry point. Copy both files when using the template. rsctf
+delivers the rotating flag to the service first, then gives the checker the same
+expected value as `RSCTF_FLAG`. The checker retrieves and compares it through
 player-visible behavior without changing service state.
 
 The platform-hosted service reads its writable `RSCTF_FLAG_FILE` inside the
@@ -179,10 +182,10 @@ disabled until a full two-team staging run passes.
 The hill accepts a team's current control token at
 `/claim?token=URL_ENCODED_TOKEN` and atomically writes it to `/koth/king`. rsctf
 executes into the shared hill container, reads that marker, and maps the exact
-token to its team. Its custom checker separately verifies
-`/health` without requiring `RSCTF_FLAG` or touching the ownership marker. This
-also satisfies the official scoring-start requirement that every enabled engine
-challenge has a prepared checker.
+token to its team. Its custom checker uses `KothContext` and `@koth_checker` to
+verify `/health` without requiring `RSCTF_FLAG` or touching the ownership
+marker. This also satisfies the official scoring-start requirement that every
+enabled engine challenge has a prepared checker.
 
 Current Kubernetes support cannot reliably provide every Docker-style KotH exec
 and networking behavior. Use the Docker backend for this sample unless your

@@ -21,6 +21,6 @@ container:
   exposePort: 8080
 
 ad:
-  # Repository Bindings prepares checker/run.py; its /health request proves more
-  # than the built-in TCP-connect fallback.
+  # Repository Bindings prepares checker/{run.py,lib.py}; its /health request
+  # proves more than the built-in TCP-connect fallback.
   allowEgress: false

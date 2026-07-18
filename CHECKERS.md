@@ -1,7 +1,9 @@
 # Checker development guide
 
 Repository Bindings automatically prepares a Python checker found at
-`checker/run.py` or `checker/src/run.py` beside an A&D/KotH manifest.
+`checker/run.py` or `checker/src/run.py` beside an A&D/KotH manifest. It copies
+the whole source directory, so keep the reusable `lib.py` beside `run.py` and
+copy both files when starting a checker.
 
 These checked-in examples are intended to be copied:
 
@@ -37,14 +39,68 @@ The process exit code is the entire result:
 | `2` | Offline | Connection, reset, or request timeout prevented a response |
 | `3` | InternalError | Checker configuration or checker code is broken |
 
-Any other code is also `InternalError`. An uncaught Python exception normally
-exits with code `1`, which would incorrectly blame the team as Mumble. Keep the
-top-level exception mapping shown in the templates.
+Any other code is also `InternalError`. The decorators in the bundled `lib.py`
+load and validate this environment and map checker outcomes to these codes:
+
+- returning normally is OK;
+- raising `Mumble` means the target answered incorrectly;
+- raising `Offline` means the target could not complete the request;
+- configuration errors and unexpected exceptions are InternalError.
+
+This mapping matters because an ordinary uncaught Python exception exits with
+code `1` and would otherwise incorrectly blame the team as Mumble.
+
+## Template structure
+
+Keep framework concerns in the dependency-free `lib.py` and service assertions
+in the small `run.py`. For A&D, import the shared helpers and decorate one
+function:
+
+```python
+from lib import AdContext, ad_checker, expect_text
+
+
+@ad_checker
+def check(context: AdContext) -> None:
+    expect_text(context, "/health", "ok")
+    expect_text(context, "/flag", context.flag)
+
+
+if __name__ == "__main__":
+    raise SystemExit(check())
+```
+
+`@ad_checker` turns the decorated function into a zero-argument entry point. It
+creates an `AdContext` from `RSCTF_*`, catches the documented exceptions, and
+returns the correct rsctf exit code. `expect_text` makes a bounded HTTP request
+to the supplied target and requires an exact response. For a structured or
+custom protocol check, use `get_text` and raise `Mumble` when parsing or
+validation fails.
+
+KotH uses the matching context and decorator, without a flag assertion:
+
+```python
+from lib import KothContext, expect_text, koth_checker
+
+
+@koth_checker
+def check(context: KothContext) -> None:
+    expect_text(context, "/health", "ok")
+
+
+if __name__ == "__main__":
+    raise SystemExit(check())
+```
+
+Copy the complete `checker/` directory from the closest example, then edit only
+the challenge-specific assertions in `run.py`. Keep `lib.py` and `run.py`
+together; do not copy only the entry point.
 
 ## Sandbox rules
 
-- Use the Python standard library. `requirements.txt` is rejected and pip is
-  never run during import.
+- Use the Python standard library. The bundled `lib.py` has no external
+  dependencies; `requirements.txt` is rejected and pip is never run during
+  import.
 - Set a short request timeout. The checker has one outer deadline, and an outer
   timeout becomes Offline.
 - Network access is confined to exactly the supplied target IP and port. Do not
@@ -82,8 +138,9 @@ start until every enabled engine challenge has a prepared checker.
 
 ## Local workflow
 
-Each example checker directory includes exact commands for starting its service
-and running `run.py`. Before pushing, also run:
+Each example checker directory includes both `lib.py` and `run.py`, plus exact
+commands for starting its service and running the decorated entry point. Before
+pushing, also run:
 
 ```sh
 node scripts/validate.mjs
