@@ -141,7 +141,7 @@ def imported_checker(checker: Path):
     """Import one checker with its sibling lib.py isolated as module `lib`."""
     previous_library = sys.modules.pop("lib", None)
     checker_directory = str(checker.parent)
-    module_name = "rsctf_variant_" + "_".join(
+    module_name = "rsctf_checker_" + "_".join(
         part.replace("-", "_") for part in checker.relative_to(ROOT).parts
     )
     sys.path.insert(0, checker_directory)
