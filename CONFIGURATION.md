@@ -171,6 +171,13 @@ ad:
   allowEgress: false
 ```
 
+The repository manifest does not contain an API-observer secret or claim-source
+switch. For an API-observed hill, import the ordinary `KingOfTheHill` manifest,
+then enable **API** for that hill in the A&D / KotH operator view before the
+official snapshot is created. Store the one-time secret only in an independently
+hosted observer. RSCTF freezes `Marker` or `Api` as the claim source when
+official scoring starts; the observer reports a capability, never a score.
+
 Even in BYOC mode, keep a local `src/Dockerfile`: rsctf builds it during import
 and streams the immutable challenge-service image to authorized teams. The BYOC
 tunnel must be routed to a network-capable rsctf role. The generated bundle also
@@ -187,6 +194,7 @@ dependency and all base images for a completely Docker-Hub-free deployment.
 | per-team `DynamicContainer` | [`Jeopardy/Web/dynamic-flag-service`](Jeopardy/Web/dynamic-flag-service/) |
 | platform-hosted `AttackDefense` | [`AD/Pwn/attack-defense-service`](AD/Pwn/attack-defense-service/) |
 | self-hosted `AttackDefense` | [`AD/Web/self-hosted-service`](AD/Web/self-hosted-service/) |
-| `KingOfTheHill` | [`Koth/Pwn/king-of-the-hill`](Koth/Pwn/king-of-the-hill/) |
+| marker `KingOfTheHill` | [`Koth/Pwn/king-of-the-hill`](Koth/Pwn/king-of-the-hill/) |
+| signed-API `KingOfTheHill` | [`Koth/Web/api-observed-hill`](Koth/Web/api-observed-hill/) |
 
 For custom functional checks, continue with [`CHECKERS.md`](CHECKERS.md).

@@ -15,6 +15,8 @@ These checked-in examples are intended to be copied:
   uses pinned httpx to verify a self-hosted Web service through a BYOC tunnel.
 - [`Koth/Pwn/king-of-the-hill/checker/`](Koth/Pwn/king-of-the-hill/checker/)
   checks hill health without touching the KotH ownership marker.
+- [`Koth/Web/api-observed-hill/checker/`](Koth/Web/api-observed-hill/checker/)
+  checks normal hill behavior without reading the API-observed controller.
 
 ## Runtime contract
 
@@ -188,9 +190,10 @@ challenge-specific; none of this behavior moves into `lib.py`. Its two focused
 checks collectively cover `/health` and the current flag at `/secret`.
 
 KotH uses the matching runner but receives no flag. Its complete suite must
-cover the intended health/functionality contract and must not touch
-`/koth/king`. The checked-in KotH example registers focused health and banner
-checks after its local HTTP helper:
+cover the intended health/functionality contract and must not touch control
+input: `/koth/king` in marker mode or `/control` in the signed-API example.
+Both checked-in KotH examples register focused health and banner checks after
+their local HTTP helper:
 
 ```python
 from lib import KothContext, Mumble, checker, run_koth_checker
@@ -313,10 +316,11 @@ Service code must read its flag file at request time. A creation-time environmen
 value cannot rotate. The checker must not replace the flag itself, because that
 would bypass the platform's delivery path.
 
-KotH is different: it has no flag environment. rsctf reads `/koth/king` before
-and after the custom checker and performs ownership attribution itself. A KotH
-checker should verify a normal health/functionality exchange without reading or
-modifying that marker.
+KotH is different: it has no flag environment. RSCTF samples either
+`/koth/king` or the latest exact-context signed API observation before and after
+the custom checker, then performs ownership attribution itself. A KotH checker
+should verify a normal health/functionality exchange without reading or
+modifying either control source.
 
 Keep a prepared checker beside every enabled A&D and KotH challenge. The TCP
 fallback can diagnose a missing checker, but official epoch scoring does not
@@ -338,7 +342,9 @@ python3 -m venv /tmp/rsctf-example-checkers
   --disable-pip-version-check --no-input --only-binary=:all: \
   -- pwntools==4.15.0 httpx==0.28.1
 /tmp/rsctf-example-checkers/bin/python scripts/test-checkers.py
+python3 scripts/test-koth-observer.py
 ```
 
 CI creates the same isolated environment, performs these checks, exercises all
-four checker verdict classes, and builds every bundled service context.
+four checker verdict classes, verifies the observer's signed wire format, and
+builds every bundled service context.

@@ -2,7 +2,9 @@
 """Run the bundled A&D/KotH checkers against their example services."""
 
 from contextlib import ExitStack, contextmanager
+from http.client import HTTPConnection
 import importlib.util
+import json
 import os
 from pathlib import Path
 import socket
@@ -51,6 +53,57 @@ def tcp_exchange(port: int, request: bytes) -> bytes:
                 break
             response.extend(chunk)
     return bytes(response)
+
+
+def http_exchange(
+    port: int,
+    method: str,
+    path: str,
+    *,
+    body: bytes | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, bytes]:
+    connection = HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        connection.request(method, path, body=body, headers=headers or {})
+        response = connection.getresponse()
+        return response.status, response.read(4097)
+    finally:
+        connection.close()
+
+
+def test_api_koth_protocol(port: int) -> None:
+    status, body = http_exchange(port, "GET", "/control")
+    if status != 200 or json.loads(body) != {"token": None}:
+        raise RuntimeError("API-observed hill did not start uncaptured")
+
+    token = "koth_cycle_capability"
+    encoded = f"token={token}".encode()
+    status, body = http_exchange(
+        port,
+        "POST",
+        "/claim",
+        body=encoded,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    if status != 200 or body != b"claim recorded\n":
+        raise RuntimeError("API-observed hill rejected a valid claim")
+    status, body = http_exchange(port, "GET", "/control")
+    if status != 200 or json.loads(body) != {"token": token}:
+        raise RuntimeError("API-observed hill did not expose the exact controller token")
+
+    status, _body = http_exchange(
+        port,
+        "POST",
+        "/claim",
+        body=encoded,
+        headers={"Content-Type": "application/json"},
+    )
+    if status != 415:
+        raise RuntimeError("API-observed hill accepted an ambiguous claim media type")
+    status, body = http_exchange(port, "GET", "/control")
+    if status != 200 or json.loads(body) != {"token": token}:
+        raise RuntimeError("an invalid claim changed the current controller")
 
 
 def test_managed_tcp_protocol(port: int, flag_file: Path, expected_flag: str) -> None:
@@ -435,6 +488,7 @@ def main() -> None:
     managed = ROOT / "AD/Pwn/attack-defense-service"
     byoc = ROOT / "AD/Web/self-hosted-service"
     koth = ROOT / "Koth/Pwn/king-of-the-hill"
+    api_koth = ROOT / "Koth/Web/api-observed-hill"
     test_decorator_guardrails(managed / "checker/lib.py")
 
     with tempfile.TemporaryDirectory(prefix="rsctf-checkers-") as temporary:
@@ -447,9 +501,9 @@ def main() -> None:
         byoc_flag_file.write_text(byoc_flag + "\n", encoding="utf-8")
 
         ports: set[int] = set()
-        while len(ports) < 3:
+        while len(ports) < 4:
             ports.add(unused_port())
-        managed_port, byoc_port, koth_port = ports
+        managed_port, byoc_port, koth_port, api_koth_port = ports
         with ExitStack() as stack:
             stack.enter_context(
                 service(
@@ -468,16 +522,19 @@ def main() -> None:
                     KOTH_KING_PATH=str(temporary_root / "king"),
                 )
             )
+            stack.enter_context(service(api_koth, api_koth_port))
 
             test_managed_tcp_protocol(
                 managed_port,
                 managed_flag_file,
                 managed_flag,
             )
+            test_api_koth_protocol(api_koth_port)
 
             managed_checker = managed / "checker/run.py"
             byoc_checker = byoc / "checker/run.py"
             koth_checker = koth / "checker/run.py"
+            api_koth_checker = api_koth / "checker/run.py"
             exercise_registered_suite(
                 managed_checker,
                 "run_ad_checker",
@@ -492,6 +549,11 @@ def main() -> None:
                 koth_checker,
                 "run_koth_checker",
                 checker_environment(koth_port, team_id=0),
+            )
+            exercise_registered_suite(
+                api_koth_checker,
+                "run_koth_checker",
+                checker_environment(api_koth_port, team_id=0),
             )
 
             expect(
@@ -599,8 +661,20 @@ def main() -> None:
                 3,
                 checker_environment(koth_port, team_id=1),
             )
+            expect(
+                api_koth_checker,
+                0,
+                checker_environment(api_koth_port, team_id=0),
+            )
+            expect(
+                api_koth_checker,
+                2,
+                checker_environment(unused_port(), team_id=0),
+            )
 
-    print("OK: raw TCP, HTTP, registered checker suites, and verdicts passed.")
+    print(
+        "OK: raw TCP, HTTP, marker/API KotH, registered checker suites, and verdicts passed."
+    )
 
 
 if __name__ == "__main__":

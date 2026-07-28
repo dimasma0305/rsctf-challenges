@@ -2,7 +2,7 @@
 
 This repository is a complete, safe-by-default example for rsctf's **Admin →
 Repository Bindings** feature. Bind it and rsctf will find the root `.gzevent`,
-create one hidden game, and import the seven nested challenge manifests.
+create one hidden game, and import the eight nested challenge manifests.
 
 The example is intentionally small and readable. Container manifests omit
 `containerImage`, so Repository Bindings builds each adjacent `src/Dockerfile`
@@ -20,15 +20,16 @@ pulled from Docker Hub.
 | `AD/Pwn/attack-defense-service` | `AttackDefense` | Platform-hosted raw TCP line service, rotating flag file, and pwntools checker | Demo only; validate the entire A&D network first |
 | `AD/Web/self-hosted-service` | `AttackDefense` | BYOC HTTP service, outbound tunnel, rotating flag file, and HTTP checker | Demo only; validate the BYOC relay first |
 | `Koth/Pwn/king-of-the-hill` | `KingOfTheHill` | Shared hill and `/koth/king` control marker | Demo only; Docker is currently required for reliable marker reads |
+| `Koth/Web/api-observed-hill` | `KingOfTheHill` | Shared HTTP hill plus an independently hosted signed observer | Demo only; configure and protect the one-time observer secret |
 
 Repository imports always create challenges with `isEnabled = false`. This
 event is also created with `hidden: true`, so importing it does not publish a
 live competition. Trusted repository imports do mark the challenge review state
-as active. During the scan, this example prepares three A&D/KotH checkers and
-builds the five container challenge images from their checked-in source. Each
+as active. During the scan, this example prepares four A&D/KotH checkers and
+builds the six container challenge images from their checked-in source. Each
 checker pairs a protocol-neutral `lib.py` with registered checks in `run.py`;
-the Pwn and Web checkers additionally install exact `pwntools==4.15.0` and
-`httpx==0.28.1` wheel requirements, respectively.
+the two A&D checkers additionally install exact `pwntools==4.15.0` and
+`httpx==0.28.1` wheel requirements.
 
 New challenge authors should start with [`CONFIGURATION.md`](CONFIGURATION.md)
 and [`CHECKERS.md`](CHECKERS.md). The active manifests are deliberately
@@ -45,14 +46,15 @@ rsctf-challenges/
 │   ├── Pwn/attack-defense-service/{challenge.yaml,checker/,src/}
 │   └── Web/self-hosted-service/{challenge.yaml,checker/,src/}
 ├── Koth/
-│   └── Pwn/king-of-the-hill/{challenge.yaml,checker/,src/}
+│   ├── Pwn/king-of-the-hill/{challenge.yaml,checker/,src/}
+│   └── Web/api-observed-hill/{challenge.yaml,checker/,observer/,src/}
 ├── Jeopardy/
 │   ├── Misc/{static-handout,dynamic-handout}/
 │   └── Web/{static-flag-service,dynamic-flag-service}/
 ├── CHECKERS.md
 ├── CONFIGURATION.md
 ├── LICENSE.txt
-├── scripts/{validate.mjs,test-checkers.py}
+├── scripts/{validate.mjs,test-checkers.py,test-koth-observer.py}
 └── README.md
 ```
 
@@ -87,6 +89,15 @@ pinned wheel dependencies as described in [`CHECKERS.md`](CHECKERS.md):
 They launch the bundled services on loopback and verify the `0` OK, `1` Mumble,
 `2` Offline, and `3` InternalError exit-code contract.
 
+Exercise the API observer separately:
+
+```sh
+python3 scripts/test-koth-observer.py
+```
+
+It verifies exact HMAC signing, context fencing, explicit uncaptured state, and
+deduplication without requiring a live RSCTF deployment.
+
 ## Import it from GitHub
 
 1. Sign in as an administrator and open **Admin → Repository Bindings**. On the
@@ -97,8 +108,8 @@ They launch the bundled services on loopback and verify the `0` OK, `1` Mumble,
 4. For a private fork, use a fine-grained GitHub token with read-only
    repository contents access unless you intentionally need push-back.
 5. Run **Scan now** and inspect the scan result. It should report one event and
-   seven imported challenges.
-6. Open the newly created hidden game and verify that all five container builds
+   eight imported challenges.
+6. Open the newly created hidden game and verify that all six container builds
    completed successfully. Set its real schedule, review every flag, build log,
    checker, and runtime, then enable only the challenges you tested.
 
@@ -128,7 +139,7 @@ All files here are tiny text examples and contain no secrets.
 
 ## Container image behavior
 
-The five container-based manifests intentionally omit `containerImage`. During
+The six container-based manifests intentionally omit `containerImage`. During
 a trusted Repository Bindings scan, rsctf finds `src/Dockerfile`, stores the
 complete challenge package as the immutable build source, selects `src/` as the
 Docker context, generates an internal `rsctf/<game>/<challenge>:latest` tag, and
@@ -195,22 +206,31 @@ A&D additionally requires the rsctf A&D network/VPN, accepted teams, round
 scheduler, container backend, and checker sandbox to be working. Keep the demo
 disabled until a full two-team staging run passes.
 
-## King of the Hill contract
+## King of the Hill contracts
 
-The hill accepts a team's current control token at
-`/claim?token=URL_ENCODED_TOKEN` and atomically writes it to `/koth/king`. rsctf
+The marker example accepts a team's current control token at
+`/claim?token=URL_ENCODED_TOKEN` and atomically writes it to `/koth/king`. RSCTF
 executes into the shared hill container, reads that marker, and maps the exact
-token to its team. Its custom checker uses `KothContext`, `@checker`, and
-`run_koth_checker()` to run every focused HTTP check in cryptographically
-shuffled order without requiring `RSCTF_FLAG` or touching the ownership marker.
-That HTTP exchange lives in this challenge's `run.py`; another hill may use any
-TCP application protocol its service requires. The legacy `@koth_checker` entry
-point remains supported. This also satisfies the official scoring-start
-requirement that every enabled engine challenge has a prepared checker.
+token to its team. Current Kubernetes support cannot reliably provide every
+Docker-style exec and networking behavior, so use the Docker backend for that
+sample unless your cluster implementation has been tested end to end.
 
-Current Kubernetes support cannot reliably provide every Docker-style KotH exec
-and networking behavior. Use the Docker backend for this sample unless your
-cluster-specific implementation has been tested end to end.
+The API example accepts the same kind of team capability through its challenge
+protocol, but has no `/koth/king` dependency. A separately deployed observer
+reads `/control`, fetches the active context from RSCTF, and signs only the
+exact capability or JSON `null`. The HMAC secret is never placed in the hill
+image. This makes the control input portable to Kubernetes and private workers,
+provided the observer has a stable network route to the active hill. Follow
+[`Koth/Web/api-observed-hill/observer/README.md`](Koth/Web/api-observed-hill/observer/README.md)
+before enabling it.
+
+Neither input mode is a score webhook. RSCTF runs the functional checker,
+requires stable healthy observations, owns crown cycles, and applies the fixed
+KotH formula. Both examples use `KothContext`, `@checker`, and
+`run_koth_checker()` without `RSCTF_FLAG`; the checker never reads or changes
+controller state. The legacy `@koth_checker` entry point remains supported.
+Preparing a checker also satisfies the official scoring-start requirement for
+each enabled engine challenge.
 
 ## Current DynamicAttachment limitation
 

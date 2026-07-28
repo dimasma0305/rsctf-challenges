@@ -91,7 +91,12 @@ const TYPES = [
   'KingOfTheHill',
 ]
 
-const EXPECTED_TYPE_COUNTS = new Map(TYPES.map((type) => [type, type === 'AttackDefense' ? 2 : 1]))
+const EXPECTED_TYPE_COUNTS = new Map(
+  TYPES.map((type) => [
+    type,
+    type === 'AttackDefense' || type === 'KingOfTheHill' ? 2 : 1,
+  ])
+)
 
 const EXPECTED_CHALLENGE_COUNT = [...EXPECTED_TYPE_COUNTS.values()].reduce((total, count) => total + count, 0)
 
@@ -629,12 +634,48 @@ function checkChecker(file, model) {
       reportError(file, 'self-hosted HTTP checker must use the pinned httpx client')
     }
   }
-  if (packagePath === 'Koth/Pwn/king-of-the-hill') {
+  if (
+    packagePath === 'Koth/Pwn/king-of-the-hill' ||
+    packagePath === 'Koth/Web/api-observed-hill'
+  ) {
     if (!source.includes('HTTPConnection') || source.includes('from pwn import')) {
       reportError(file, 'KotH checker must remain an HTTP standard-library client')
     }
     if (existsSync(requirements)) {
       reportError(file, 'KotH checker must remain dependency-free')
+    }
+  }
+  if (packagePath === 'Koth/Web/api-observed-hill') {
+    const observer = resolve(packageRoot, 'observer', 'observer.py')
+    const observerReadme = resolve(packageRoot, 'observer', 'README.md')
+    if (!existsSync(observer) || !existsSync(observerReadme)) {
+      reportError(file, 'API KotH example must include observer/{observer.py,README.md}')
+    } else {
+      const observerSource = readFileSync(observer, 'utf8')
+      for (const marker of [
+        'RSCTF_KOTH_OBSERVER_SECRET',
+        '/context',
+        '/observations',
+        'X-RSCTF-Timestamp',
+        'X-RSCTF-Signature',
+        'hashlib.sha256',
+        'hmac.new(',
+        'separators=(",", ":")',
+        'state == self.last_state',
+        'ProxyHandler({})',
+        'class _NoRedirect',
+      ]) {
+        if (!observerSource.includes(marker)) {
+          reportError(file, `API KotH observer is missing ${marker}`)
+        }
+      }
+    }
+    const challengeSource = readFileSync(resolve(packageRoot, 'src', 'app.py'), 'utf8')
+    if (
+      challengeSource.includes('RSCTF_KOTH_OBSERVER_SECRET') ||
+      challengeSource.includes('X-RSCTF-Signature')
+    ) {
+      reportError(file, 'attackable hill source must not contain observer credentials or signing')
     }
   }
   if (checkerImage) {
@@ -721,6 +762,7 @@ function validateChallenge(file, model) {
     }
     const dockerfile = resolve(dirname(file), 'src', 'Dockerfile')
     const app = resolve(dirname(file), 'src', 'app.py')
+    const packagePath = relative(ROOT, dirname(file)).split(sep).join('/')
     if (!existsSync(dockerfile) || !existsSync(app)) {
       reportError(file, 'auto-built sample image must provide src/Dockerfile and src/app.py')
     }
@@ -734,11 +776,18 @@ function validateChallenge(file, model) {
       reportError(file, 'container.enableSharedContainer applies only to StaticContainer')
     }
     if (
-      model.type === 'KingOfTheHill' &&
+      packagePath === 'Koth/Pwn/king-of-the-hill' &&
       existsSync(dockerfile) &&
       !readFileSync(dockerfile, 'utf8').includes('chmod 01777 /koth')
     ) {
-      reportError(file, 'KotH Dockerfile must make /koth writable for arbitrary non-root UIDs')
+      reportError(file, 'marker KotH Dockerfile must make /koth writable for arbitrary non-root UIDs')
+    }
+    if (
+      packagePath === 'Koth/Web/api-observed-hill' &&
+      existsSync(dockerfile) &&
+      readFileSync(dockerfile, 'utf8').includes('/koth')
+    ) {
+      reportError(file, 'API-observed KotH image must not depend on the /koth marker')
     }
   } else if (model.container !== undefined) {
     reportError(file, `${model.type} must not define a container block`)

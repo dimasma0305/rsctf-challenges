@@ -53,6 +53,9 @@ jobs:
       - name: Exercise checker verdicts
         run: .checker-venv/bin/python scripts/test-checkers.py
 
+      - name: Exercise signed KotH observer
+        run: python3 scripts/test-koth-observer.py
+
   containers:
     name: Build ${{ matrix.name }}
     needs: manifests
@@ -72,6 +75,8 @@ jobs:
             context: AD/Web/self-hosted-service/src
           - name: king-of-the-hill
             context: Koth/Pwn/king-of-the-hill/src
+          - name: api-observed-hill
+            context: Koth/Web/api-observed-hill/src
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
