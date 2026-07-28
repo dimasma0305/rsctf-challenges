@@ -20,7 +20,7 @@ pulled from Docker Hub.
 | `AD/Pwn/attack-defense-service` | `AttackDefense` | Platform-hosted raw TCP line service, rotating flag file, and pwntools checker | Demo only; validate the entire A&D network first |
 | `AD/Web/self-hosted-service` | `AttackDefense` | BYOC HTTP service, outbound tunnel, rotating flag file, and HTTP checker | Demo only; validate the BYOC relay first |
 | `Koth/Pwn/king-of-the-hill` | `KingOfTheHill` | Shared hill and `/koth/king` control marker | Demo only; Docker is currently required for reliable marker reads |
-| `Koth/Web/api-observed-hill` | `KingOfTheHill` | Shared HTTP hill plus an independently hosted signed observer | Demo only; configure and protect the one-time observer secret |
+| `Koth/Web/api-observed-hill` | `KingOfTheHill` | Multi-team proof arena plus an independently hosted signed referee | Demo only; configure and protect the one-time referee secret |
 
 Repository imports always create challenges with `isEnabled = false`. This
 event is also created with `hidden: true`, so importing it does not publish a
@@ -89,14 +89,15 @@ pinned wheel dependencies as described in [`CHECKERS.md`](CHECKERS.md):
 They launch the bundled services on loopback and verify the `0` OK, `1` Mumble,
 `2` Offline, and `3` InternalError exit-code contract.
 
-Exercise the API observer separately:
+Exercise the API arena referee separately:
 
 ```sh
 python3 scripts/test-koth-observer.py
 ```
 
-It verifies exact HMAC signing, context fencing, explicit uncaptured state, and
-deduplication without requiring a live RSCTF deployment.
+It verifies exact HMAC signing, per-round context fencing, capability-hash
+filtering, explicit zero snapshots, normalization inputs, persistent restart,
+feed-gap failure, and deduplication without requiring a live RSCTF deployment.
 
 ## Import it from GitHub
 
@@ -215,12 +216,17 @@ token to its team. Current Kubernetes support cannot reliably provide every
 Docker-style exec and networking behavior, so use the Docker backend for that
 sample unless your cluster implementation has been tested end to end.
 
-The API example accepts the same kind of team capability through its challenge
-protocol, but has no `/koth/king` dependency. A separately deployed observer
-reads `/control`, fetches the active context from RSCTF, and signs only the
-exact capability or JSON `null`. The HMAC secret is never placed in the hill
-image. This makes the control input portable to Kubernetes and private workers,
-provided the observer has a stable network route to the active hill. Follow
+The API example accepts each team's current capability only to start a
+short-lived, one-use proof session and immediately reduces it to a SHA-256
+hash. A separately deployed referee drains the ordered evidence feed, filters
+it against the current eligible hashes from RSCTF, and signs bounded activity,
+objective, and integrity ratios for every active team. It never submits points
+or raw capabilities. RSCTF independently normalizes the native budgets, writes
+an explicit zero for an omitted team, and scores only a snapshot that remains
+unchanged around a healthy functional check. The HMAC secret is never placed in
+the arena image. This makes the evidence input portable to Kubernetes and
+private workers, provided the referee has stable routes to RSCTF and the active
+arena. Follow
 [`Koth/Web/api-observed-hill/observer/README.md`](Koth/Web/api-observed-hill/observer/README.md)
 before enabling it.
 

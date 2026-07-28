@@ -2,6 +2,7 @@
 """Run the bundled A&D/KotH checkers against their example services."""
 
 from contextlib import ExitStack, contextmanager
+import hashlib
 from http.client import HTTPConnection
 import importlib.util
 import json
@@ -73,37 +74,102 @@ def http_exchange(
 
 
 def test_api_koth_protocol(port: int) -> None:
-    status, body = http_exchange(port, "GET", "/control")
-    if status != 200 or json.loads(body) != {"token": None}:
-        raise RuntimeError("API-observed hill did not start uncaptured")
-
     token = "koth_cycle_capability"
-    encoded = f"token={token}".encode()
+    status, _body = http_exchange(
+        port,
+        "POST",
+        "/start",
+        body=json.dumps({"token": token}).encode(),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    if status != 415:
+        raise RuntimeError("API arena accepted an ambiguous request media type")
+
     status, body = http_exchange(
         port,
         "POST",
-        "/claim",
-        body=encoded,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        "/start",
+        body=json.dumps({"token": token}).encode(),
+        headers={"Content-Type": "application/json"},
     )
-    if status != 200 or body != b"claim recorded\n":
-        raise RuntimeError("API-observed hill rejected a valid claim")
-    status, body = http_exchange(port, "GET", "/control")
-    if status != 200 or json.loads(body) != {"token": token}:
-        raise RuntimeError("API-observed hill did not expose the exact controller token")
+    puzzle = json.loads(body)
+    if (
+        status != 201
+        or set(puzzle)
+        != {
+            "algorithm",
+            "difficulty",
+            "expiresAt",
+            "maxCounter",
+            "nonce",
+            "sessionId",
+        }
+        or puzzle["algorithm"] != "sha256"
+        or puzzle["difficulty"] != 4
+    ):
+        raise RuntimeError(f"API arena returned an invalid puzzle: {puzzle!r}")
+
+    valid_counter = None
+    invalid_counter = None
+    prefix = "0" * puzzle["difficulty"]
+    for counter in range(puzzle["maxCounter"] + 1):
+        digest = hashlib.sha256(f"{puzzle['nonce']}:{counter}".encode()).hexdigest()
+        if digest.startswith(prefix):
+            valid_counter = counter
+            if invalid_counter is not None:
+                break
+        elif invalid_counter is None:
+            invalid_counter = counter
+    if valid_counter is None or invalid_counter is None:
+        raise RuntimeError("test could not solve the bounded API arena puzzle")
+
+    status, body = http_exchange(
+        port,
+        "POST",
+        "/solve",
+        body=json.dumps(
+            {"sessionId": puzzle["sessionId"], "counter": invalid_counter}
+        ).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    if status != 422 or json.loads(body)["accepted"] is not False:
+        raise RuntimeError("API arena accepted an incorrect proof")
+
+    status, body = http_exchange(
+        port,
+        "POST",
+        "/solve",
+        body=json.dumps(
+            {"sessionId": puzzle["sessionId"], "counter": valid_counter}
+        ).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    if status != 200 or json.loads(body)["accepted"] is not True:
+        raise RuntimeError("API arena rejected a valid one-use proof")
 
     status, _body = http_exchange(
         port,
         "POST",
-        "/claim",
-        body=encoded,
+        "/solve",
+        body=json.dumps(
+            {"sessionId": puzzle["sessionId"], "counter": valid_counter}
+        ).encode(),
         headers={"Content-Type": "application/json"},
     )
-    if status != 415:
-        raise RuntimeError("API-observed hill accepted an ambiguous claim media type")
-    status, body = http_exchange(port, "GET", "/control")
-    if status != 200 or json.loads(body) != {"token": token}:
-        raise RuntimeError("an invalid claim changed the current controller")
+    if status != 409:
+        raise RuntimeError("API arena replayed a closed proof")
+
+    status, body = http_exchange(port, "GET", "/referee/evidence?after=0")
+    feed = json.loads(body)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    if (
+        status != 200
+        or len(feed["events"]) != 2
+        or [event["valid"] for event in feed["events"]] != [False, True]
+        or any(event["tokenHash"] != token_hash for event in feed["events"])
+        or token.encode() in body
+    ):
+        raise RuntimeError(f"API arena evidence was incomplete or leaked a token: {feed!r}")
 
 
 def test_managed_tcp_protocol(port: int, flag_file: Path, expected_flag: str) -> None:

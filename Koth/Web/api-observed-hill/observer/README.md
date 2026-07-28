@@ -1,56 +1,65 @@
-# Trusted API observer
+# Trusted API arena referee
 
-This process runs outside the attackable hill and translates the demo
-challenge's current controller into RSCTF's signed KotH observation protocol.
-It reports only an exact team capability or JSON `null`; it cannot submit team
-IDs, scores, durations, or formula inputs. RSCTF remains authoritative for
-health confirmation, crown state, and fixed scoring.
+This process runs outside the player-facing arena. It reads the arena's bounded
+event feed, filters events against the current capability hashes supplied by
+RSCTF, aggregates integer evidence, signs the exact snapshot, and submits it to
+RSCTF. It never sends raw capabilities or points.
 
 ## Security boundary
 
-Never copy `RSCTF_KOTH_OBSERVER_SECRET` into `src/`, the hill image, a player
-client, or a public log. Compromising the hill should let a team control the
-hill, but must not reveal the credential of the independent observer. Run one
-observer per hill under a dedicated OS or orchestrator identity, store its
-environment in a restricted secret store, and use HTTPS with synchronized
-system time.
+Never copy `RSCTF_KOTH_OBSERVER_SECRET` into `src/`, the arena image, a browser,
+or a public log. Run the referee under a dedicated identity with:
 
-The repository importer selects `src/` as the challenge image build context.
-Therefore this sibling `observer/` directory is retained as documentation but
-is not copied into the challenge image.
+- HTTPS to RSCTF and the private arena endpoint;
+- synchronized system time;
+- a persistent state path writable only by that identity;
+- restricted network egress; and
+- monitoring for feed gaps, context conflicts, and recognized-team mismatch.
+
+The repository importer builds only `src/`. This sibling `observer/` directory
+is therefore not copied into the attackable image.
+
+## What the example proves
+
+The arena issues an unpredictable, expiring, one-use proof-of-work session.
+Every solve attempt becomes an ordered event containing only the capability
+hash, validity, proof-strength budget, and speed budget.
+
+The referee produces:
+
+- activity: up to five valid solutions per tick;
+- objectives: independently normalized proof strength and speed;
+- integrity: valid attempts divided by all solve attempts.
+
+Unknown hashes are removed before submission. A cursor retention gap fails
+closed. State is written atomically with mode `0600`, so a restart does not
+duplicate accepted evidence or lose its strictly increasing timestamp.
 
 ## RSCTF setup
 
-1. Import the example and keep the game hidden with scoring paused.
-2. Open **A&D / KotH operations**, choose the KotH view, and select
-   **Enable API** for this challenge.
-3. Copy the one-time secret immediately.
-4. Start the official KotH lifecycle while still paused. The API context does
-   not exist before the active crown cycle and target exist.
-5. Configure this observer with a stable, observer-reachable hill URL. In
-   Kubernetes this is normally a private Service name; do not use an ephemeral
-   Pod IP.
-6. Run `--once`, confirm the observation time in the operator view, then run
-   continuously and resume scoring.
+1. Import the example and leave the game hidden with scoring paused.
+2. Open **A&D / KotH operations**, select KotH, and choose **Enable API**.
+3. Copy the one-time secret.
+4. Start the official lifecycle while paused.
+5. Configure a stable referee-reachable arena URL.
+6. Run `--once`, confirm a current explicit-zero snapshot, exercise one valid
+   and one invalid player action, run `--once` again, and inspect the board.
+7. Run continuously and resume scoring.
 
-The claim source is frozen in the official snapshot. It cannot be switched
-from marker mode to API mode after scoring starts.
-
-A repository rescan recreates challenge rows and can change the challenge ID.
-Stop the observer before a staging rescan, then enable API again and install the
-new ID and one-time secret. Never rescan this binding during a live event.
+The `Api` source is frozen with the official hill. A repository rescan can
+change staging configuration; rehearse it outside a live event.
 
 ## Run
 
-Python 3.10 or newer is enough; the client has no third-party dependencies.
-Read the secret interactively so it does not enter shell history:
+Python 3.10 or newer is sufficient; no third-party package is required.
 
 ```sh
 export RSCTF_ORIGIN=https://ctf.example
 export RSCTF_GAME_ID=7
 export RSCTF_CHALLENGE_ID=42
-export RSCTF_KOTH_HILL_URL=https://api-hill.internal.example
-read -r -s -p 'Observer secret: ' RSCTF_KOTH_OBSERVER_SECRET
+export RSCTF_KOTH_HILL_URL=https://api-arena.internal.example
+export RSCTF_KOTH_STATE_FILE=/var/lib/rsctf-koth-referee/state.json
+read -r -s -p 'Referee secret: ' RSCTF_KOTH_OBSERVER_SECRET
 printf '\n'
 export RSCTF_KOTH_OBSERVER_SECRET
 
@@ -58,33 +67,43 @@ python3 observer/observer.py --once
 exec python3 observer/observer.py
 ```
 
-Optional settings are:
+Optional settings:
 
 | Variable | Default | Constraint |
 | --- | ---: | --- |
-| `RSCTF_KOTH_POLL_SECONDS` | `5` | `1..300`; unchanged state is not reposted |
-| `RSCTF_KOTH_TIMEOUT_SECONDS` | `5` | `1..60` per HTTP request |
+| `RSCTF_KOTH_POLL_SECONDS` | `5` | `1..300` |
+| `RSCTF_KOTH_TIMEOUT_SECONDS` | `5` | `1..60` seconds per request |
+| `RSCTF_KOTH_STATE_FILE` | none | use a persistent restricted path in production |
 
-The observer fetches a fresh RSCTF context on every poll. It posts when either
-the context or observed capability changes, uses a strictly increasing
-Unix-millisecond timestamp, signs the exact compact JSON bytes, and retries
-failures with bounded exponential backoff. A `409` therefore causes a fresh
-context fetch instead of replaying stale state. It ignores ambient proxy
-variables and refuses HTTP redirects so a compromised hill cannot steer its
-trusted network client elsewhere. It never sends the observer secret to the
-hill.
+For loopback development only, add `--allow-insecure-http`.
 
-For loopback-only development, add `--allow-insecure-http`. Do not use that
-flag for an event.
+## Behavior
 
-## Local regression test
+On every poll, the referee:
 
-From the repository root:
+1. fetches the exact active round context and eligible hashes;
+2. resets accumulated team evidence on a new round;
+3. resets its feed cursor only when a new cycle/reset replaces the container;
+4. drains bounded evidence pages and rejects a cursor gap;
+5. ignores events outside the active round or eligible hash set;
+6. constructs one compact, deterministic signed body;
+7. posts only when the current snapshot changed; and
+8. requires submitted and recognized team counts to match.
+
+RSCTF waits at most six seconds for the first exact current-round snapshot,
+then may sample at any point in the round. Updating evidence during the short
+functional probe voids that tick rather than producing inconsistent scoring.
+Keep the polling interval below that arrival window and monitor void frequency
+during rehearsal.
+
+## Regression test
+
+From the challenge repository root:
 
 ```sh
 python3 scripts/test-koth-observer.py
 ```
 
-The test runs fake RSCTF and hill endpoints, verifies the exact HMAC, checks
-explicit uncaptured observations, confirms context changes are reposted, and
-ensures unchanged state is deduplicated.
+The test verifies HMAC scope, initial zero, objective budgets, raw-token
+absence, unknown-hash filtering, deduplication, persistent restart, round
+fencing, feed-gap failure, redirect refusal, and HTTPS-by-default URL checks.
