@@ -23,6 +23,17 @@ TOKEN = "koth_cycle_capability"
 TOKEN_HASH = hashlib.sha256(TOKEN.encode()).hexdigest()
 OTHER_VALID_HASH = hashlib.sha256(b"koth_other_current_capability").hexdigest()
 UNKNOWN_HASH = hashlib.sha256(b"not-a-current-capability").hexdigest()
+OBJECTIVE_IDS = ["proof-strength", "solve-speed"]
+
+
+def objective_schema_hash() -> str:
+    digest = hashlib.sha256()
+    digest.update(len(OBJECTIVE_IDS).to_bytes(8, "big"))
+    for objective_id in OBJECTIVE_IDS:
+        encoded = objective_id.encode()
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
 
 
 def load_observer():
@@ -76,6 +87,8 @@ class Handler(BaseHTTPRequestHandler):
                     "roundStartsAt": Fixture.starts_at,
                     "roundEndsAt": Fixture.ends_at,
                     "eligibleTokenHashes": [TOKEN_HASH, OTHER_VALID_HASH],
+                    "objectiveIds": OBJECTIVE_IDS,
+                    "objectiveSchemaHash": objective_schema_hash(),
                     "generatedAt": Fixture.starts_at + 1,
                 },
             )
@@ -190,16 +203,23 @@ def main() -> None:
             decoded = [json.loads(body) for body in Fixture.observations]
             expected_team = {
                 "activity": {"earned": 1, "possible": 5},
-                "integrity": {"earned": 1, "possible": 2},
                 "objectives": [
-                    {"earned": 4, "possible": 10},
-                    {"earned": 50_000, "possible": 120_000},
+                    {"earned": 4, "possible": 5},
+                    {"earned": 50_000, "possible": 60_000},
                 ],
                 "tokenHash": TOKEN_HASH,
             }
             if decoded != [
-                {"context": "1" * 64, "teams": []},
-                {"context": "1" * 64, "teams": [expected_team]},
+                {
+                    "context": "1" * 64,
+                    "objectiveIds": OBJECTIVE_IDS,
+                    "teams": [],
+                },
+                {
+                    "context": "1" * 64,
+                    "objectiveIds": OBJECTIVE_IDS,
+                    "teams": [expected_team],
+                },
             ]:
                 raise RuntimeError(f"unexpected arena snapshot bodies: {decoded!r}")
             if TOKEN.encode() in b"".join(Fixture.observations):
@@ -221,6 +241,7 @@ def main() -> None:
                 raise RuntimeError("a new scoring tick did not receive explicit zero evidence")
             if json.loads(Fixture.observations[-1]) != {
                 "context": "2" * 64,
+                "objectiveIds": OBJECTIVE_IDS,
                 "teams": [],
             }:
                 raise RuntimeError("a previous tick's evidence carried into a new tick")

@@ -1,4 +1,4 @@
-"""API-native KotH arena with one-use proof-of-work objectives.
+"""Leaderboard KotH hill with one-use proof-of-work objectives.
 
 The player supplies a current RSCTF capability only when starting a puzzle.
 The service hashes it immediately and retains only the SHA-256 digest. A
@@ -35,7 +35,7 @@ ACTIVITY_TARGET = 5
 GLOBAL_STARTS_PER_SECOND = 100
 TEAM_STARTS_PER_MINUTE = 20
 TOKEN_PATTERN = re.compile(r"^koth_[A-Za-z0-9_-]{8,128}$")
-BANNER = "rsctf API KotH arena: solve one-use puzzles; every team can score"
+BANNER = "rsctf Leaderboard KotH: solve one-use puzzles; every team can score"
 
 
 @dataclass
@@ -75,13 +75,16 @@ def prune_sessions(timestamp_ms: int) -> None:
         sessions.pop(session_id, None)
 
 
-def allow_start(client_ip: str, token_hash: str, timestamp: float) -> bool:
+def allow_start(_client_ip: str, token_hash: str, timestamp: float) -> bool:
     while global_starts and global_starts[0] <= timestamp - 1:
         global_starts.popleft()
     if len(global_starts) >= GLOBAL_STARTS_PER_SECOND:
         return False
 
-    key = hashlib.sha256(f"{client_ip}\0{token_hash}".encode()).hexdigest()
+    # The current capability is team-scoped. Keying the quota only by its hash
+    # prevents one team from bypassing its budget through many source IPs and
+    # exhausting the shared field-wide admission budget.
+    key = token_hash
     bucket = team_starts.get(key)
     if bucket is None:
         if len(team_starts) >= MAX_RATE_KEYS:
@@ -131,7 +134,7 @@ def append_evidence(
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "rsctf-api-arena"
+    server_version = "rsctf-leaderboard-koth"
     sys_version = ""
 
     def _send(self, status: int, body: bytes, content_type: str) -> None:

@@ -83,7 +83,7 @@ def test_api_koth_protocol(port: int) -> None:
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     if status != 415:
-        raise RuntimeError("API arena accepted an ambiguous request media type")
+        raise RuntimeError("Leaderboard arena accepted an ambiguous request media type")
 
     status, body = http_exchange(
         port,
@@ -107,7 +107,7 @@ def test_api_koth_protocol(port: int) -> None:
         or puzzle["algorithm"] != "sha256"
         or puzzle["difficulty"] != 4
     ):
-        raise RuntimeError(f"API arena returned an invalid puzzle: {puzzle!r}")
+        raise RuntimeError(f"Leaderboard arena returned an invalid puzzle: {puzzle!r}")
 
     valid_counter = None
     invalid_counter = None
@@ -121,7 +121,7 @@ def test_api_koth_protocol(port: int) -> None:
         elif invalid_counter is None:
             invalid_counter = counter
     if valid_counter is None or invalid_counter is None:
-        raise RuntimeError("test could not solve the bounded API arena puzzle")
+        raise RuntimeError("test could not solve the bounded Leaderboard puzzle")
 
     status, body = http_exchange(
         port,
@@ -133,7 +133,7 @@ def test_api_koth_protocol(port: int) -> None:
         headers={"Content-Type": "application/json"},
     )
     if status != 422 or json.loads(body)["accepted"] is not False:
-        raise RuntimeError("API arena accepted an incorrect proof")
+        raise RuntimeError("Leaderboard arena accepted an incorrect proof")
 
     status, body = http_exchange(
         port,
@@ -145,7 +145,7 @@ def test_api_koth_protocol(port: int) -> None:
         headers={"Content-Type": "application/json"},
     )
     if status != 200 or json.loads(body)["accepted"] is not True:
-        raise RuntimeError("API arena rejected a valid one-use proof")
+        raise RuntimeError("Leaderboard arena rejected a valid one-use proof")
 
     status, _body = http_exchange(
         port,
@@ -157,7 +157,7 @@ def test_api_koth_protocol(port: int) -> None:
         headers={"Content-Type": "application/json"},
     )
     if status != 409:
-        raise RuntimeError("API arena replayed a closed proof")
+        raise RuntimeError("Leaderboard arena replayed a closed proof")
 
     status, body = http_exchange(port, "GET", "/referee/evidence?after=0")
     feed = json.loads(body)
@@ -169,7 +169,7 @@ def test_api_koth_protocol(port: int) -> None:
         or any(event["tokenHash"] != token_hash for event in feed["events"])
         or token.encode() in body
     ):
-        raise RuntimeError(f"API arena evidence was incomplete or leaked a token: {feed!r}")
+        raise RuntimeError(f"Leaderboard evidence was incomplete or leaked a token: {feed!r}")
 
 
 def test_managed_tcp_protocol(port: int, flag_file: Path, expected_flag: str) -> None:
@@ -739,7 +739,7 @@ def main() -> None:
             )
 
     print(
-        "OK: raw TCP, HTTP, marker/API KotH, registered checker suites, and verdicts passed."
+        "OK: raw TCP, HTTP, Boot2Root/Leaderboard KotH, registered checker suites, and verdicts passed."
     )
 
 

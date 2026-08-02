@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trusted referee for the API-native RSCTF KotH arena example."""
+"""Trusted referee for the RSCTF Leaderboard KotH example."""
 
 from __future__ import annotations
 
@@ -23,7 +23,8 @@ MAX_RESPONSE_BYTES = 2 * 1_024 * 1_024
 MAX_SUBMISSION_BYTES = 512 * 1_024
 MAX_TEAMS = 2_000
 MAX_PAGE_EVENTS = 1_000
-USER_AGENT = "rsctf-api-koth-arena-example/2"
+USER_AGENT = "rsctf-leaderboard-koth-example/3"
+OBJECTIVE_IDS = ("proof-strength", "solve-speed")
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -64,8 +65,8 @@ class Config:
 
 @dataclass
 class TeamTotals:
-    valid_actions: int = 0
-    total_actions: int = 0
+    completed_actions: int = 0
+    attempts: int = 0
     strength_earned: int = 0
     strength_possible: int = 0
     speed_earned: int = 0
@@ -81,6 +82,18 @@ class RoundContext:
     starts_at: int
     ends_at: int
     eligible_hashes: frozenset[str]
+    objective_ids: tuple[str, ...]
+    objective_schema_hash: str | None
+
+
+def _objective_schema_hash(objective_ids: tuple[str, ...]) -> str:
+    digest = hashlib.sha256()
+    digest.update(len(objective_ids).to_bytes(8, "big"))
+    for objective_id in objective_ids:
+        encoded = objective_id.encode()
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
 
 
 def _required_environment(name: str) -> str:
@@ -224,12 +237,16 @@ class RefereeClient:
             "roundStartsAt",
             "roundEndsAt",
             "eligibleTokenHashes",
+            "objectiveIds",
+            "objectiveSchemaHash",
             "generatedAt",
         }
         if set(value) != expected or value.get("apiVersion") != "v1":
             raise RuntimeError("RSCTF returned an unexpected KotH arena context")
         opaque = value["context"]
         hashes = value["eligibleTokenHashes"]
+        objective_ids = value["objectiveIds"]
+        objective_schema_hash = value["objectiveSchemaHash"]
         if (
             not _canonical_hash(opaque)
             or not isinstance(hashes, list)
@@ -238,6 +255,15 @@ class RefereeClient:
             or len(set(hashes)) != len(hashes)
         ):
             raise RuntimeError("RSCTF returned invalid eligible capability hashes")
+        if objective_ids == []:
+            if objective_schema_hash is not None:
+                raise RuntimeError("RSCTF returned a hash without an objective schema")
+        elif (
+            objective_ids != list(OBJECTIVE_IDS)
+            or not _canonical_hash(objective_schema_hash)
+            or objective_schema_hash != _objective_schema_hash(OBJECTIVE_IDS)
+        ):
+            raise RuntimeError("RSCTF returned a different Leaderboard objective schema")
         starts_at = _integer(value["roundStartsAt"], 0, 2**63 - 1, "roundStartsAt")
         ends_at = _integer(value["roundEndsAt"], starts_at + 1, 2**63 - 1, "roundEndsAt")
         return RoundContext(
@@ -248,6 +274,8 @@ class RefereeClient:
             starts_at=starts_at,
             ends_at=ends_at,
             eligible_hashes=frozenset(hashes),
+            objective_ids=tuple(objective_ids),
+            objective_schema_hash=objective_schema_hash,
         )
 
     def _fetch_page(self) -> dict[str, Any]:
@@ -331,27 +359,24 @@ class RefereeClient:
         if token_hash not in self.teams and len(self.teams) >= MAX_TEAMS:
             raise RuntimeError("arena evidence exceeded the eligible roster bound")
         totals = self.teams.setdefault(token_hash, TeamTotals())
-        totals.total_actions += 1
-        totals.valid_actions += int(event["valid"])
-        totals.strength_earned += ratios[0][0]
-        totals.strength_possible += ratios[0][1]
-        totals.speed_earned += ratios[1][0]
-        totals.speed_possible += ratios[1][1]
+        totals.attempts += 1
+        if event["valid"]:
+            totals.completed_actions += 1
+            totals.strength_earned += ratios[0][0]
+            totals.strength_possible += ratios[0][1]
+            totals.speed_earned += ratios[1][0]
+            totals.speed_possible += ratios[1][1]
 
     def _body(self, context: RoundContext) -> bytes:
         teams = []
         for token_hash, totals in sorted(self.teams.items()):
-            if totals.total_actions == 0:
+            if totals.completed_actions == 0:
                 continue
             teams.append(
                 {
                     "activity": {
-                        "earned": min(totals.valid_actions, 5),
+                        "earned": min(totals.completed_actions, 5),
                         "possible": 5,
-                    },
-                    "integrity": {
-                        "earned": totals.valid_actions,
-                        "possible": totals.total_actions,
                     },
                     "objectives": [
                         {
@@ -367,13 +392,17 @@ class RefereeClient:
                 }
             )
         body = json.dumps(
-            {"context": context.opaque, "teams": teams},
+            {
+                "context": context.opaque,
+                "objectiveIds": list(OBJECTIVE_IDS),
+                "teams": teams,
+            },
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
         ).encode()
         if len(body) > MAX_SUBMISSION_BYTES:
-            raise RuntimeError("normalized arena snapshot exceeds RSCTF's 512 KiB limit")
+            raise RuntimeError("normalized Leaderboard snapshot exceeds RSCTF's 512 KiB limit")
         return body
 
     def _next_timestamp(self) -> str:
@@ -442,7 +471,7 @@ class RefereeClient:
         self.last_submitted_digest = digest
         self._save_state()
         print(
-            "accepted KotH arena snapshot:"
+            "accepted KotH Leaderboard snapshot:"
             f" round={accepted.get('roundNumber')}"
             f" teams={accepted.get('recognizedTeams')}"
             f" cycle={accepted.get('cycleNumber')}"
@@ -475,6 +504,8 @@ class RefereeClient:
                     starts_at=context["startsAt"],
                     ends_at=context["endsAt"],
                     eligible_hashes=frozenset(context["eligibleHashes"]),
+                    objective_ids=tuple(context["objectiveIds"]),
+                    objective_schema_hash=context["objectiveSchemaHash"],
                 )
             self.cursor = int(value["cursor"])
             self.last_submitted_digest = value["lastSubmittedDigest"]
@@ -502,6 +533,8 @@ class RefereeClient:
                 "startsAt": self.context.starts_at,
                 "endsAt": self.context.ends_at,
                 "eligibleHashes": sorted(self.context.eligible_hashes),
+                "objectiveIds": list(self.context.objective_ids),
+                "objectiveSchemaHash": self.context.objective_schema_hash,
             }
         value = {
             "context": context,
@@ -538,7 +571,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--once",
         action="store_true",
-        help="submit one current arena snapshot and exit (installation preflight)",
+        help="submit one current Leaderboard snapshot and exit (installation preflight)",
     )
     parser.add_argument(
         "--allow-insecure-http",

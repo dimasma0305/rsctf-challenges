@@ -649,7 +649,7 @@ function checkChecker(file, model) {
     const observer = resolve(packageRoot, 'observer', 'observer.py')
     const observerReadme = resolve(packageRoot, 'observer', 'README.md')
     if (!existsSync(observer) || !existsSync(observerReadme)) {
-      reportError(file, 'API KotH example must include observer/{observer.py,README.md}')
+      reportError(file, 'Leaderboard KotH example must include observer/{observer.py,README.md}')
     } else {
       const observerSource = readFileSync(observer, 'utf8')
       for (const marker of [
@@ -661,12 +661,12 @@ function checkChecker(file, model) {
         'hashlib.sha256',
         'hmac.new(',
         'separators=(",", ":")',
-        'state == self.last_state',
+        'digest == self.last_submitted_digest',
         'ProxyHandler({})',
         'class _NoRedirect',
       ]) {
         if (!observerSource.includes(marker)) {
-          reportError(file, `API KotH observer is missing ${marker}`)
+          reportError(file, `Leaderboard KotH observer is missing ${marker}`)
         }
       }
     }

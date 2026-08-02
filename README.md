@@ -89,7 +89,7 @@ pinned wheel dependencies as described in [`CHECKERS.md`](CHECKERS.md):
 They launch the bundled services on loopback and verify the `0` OK, `1` Mumble,
 `2` Offline, and `3` InternalError exit-code contract.
 
-Exercise the API arena referee separately:
+Exercise the Leaderboard referee separately:
 
 ```sh
 python3 scripts/test-koth-observer.py
@@ -203,7 +203,7 @@ See [`CHECKERS.md`](CHECKERS.md) for environment variables, the `0` OK / `1`
 Mumble / `2` Offline / `3` InternalError mapping, sandbox constraints, and local
 commands.
 
-A&D additionally requires the rsctf A&D network/VPN, accepted teams, round
+A&D additionally requires the RSCTF A&D network/VPN, accepted teams, round
 scheduler, container backend, and checker sandbox to be working. Keep the demo
 disabled until a full two-team staging run passes.
 
@@ -216,17 +216,17 @@ token to its team. Current Kubernetes support cannot reliably provide every
 Docker-style exec and networking behavior, so use the Docker backend for that
 sample unless your cluster implementation has been tested end to end.
 
-The API example accepts each team's current capability only to start a
+The Leaderboard example accepts each team's current capability only to start a
 short-lived, one-use proof session and immediately reduces it to a SHA-256
 hash. A separately deployed referee drains the ordered evidence feed, filters
-it against the current eligible hashes from RSCTF, and signs bounded activity,
-objective, and integrity ratios for every active team. It never submits points
-or raw capabilities. RSCTF independently normalizes the native budgets, writes
-an explicit zero for an omitted team, and scores only a snapshot that remains
-unchanged around a healthy functional check. The HMAC secret is never placed in
-the arena image. This makes the evidence input portable to Kubernetes and
-private workers, provided the referee has stable routes to RSCTF and the active
-arena. Follow
+it against the current eligible hashes from RSCTF, and signs bounded activity
+and ordered objective ratios for every active team. It never submits points or
+raw capabilities. RSCTF independently normalizes the native budgets, writes an
+explicit zero for an omitted team, assigns exact tied-leader credit, and scores
+only a snapshot that remains unchanged around a healthy functional check. The
+HMAC secret is never placed in the arena image. This makes the evidence input
+portable to Kubernetes and private workers, provided the referee has stable
+routes to RSCTF and the active arena. Follow
 [`Koth/Web/api-observed-hill/observer/README.md`](Koth/Web/api-observed-hill/observer/README.md)
 before enabling it.
 

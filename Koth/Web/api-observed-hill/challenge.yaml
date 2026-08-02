@@ -1,9 +1,9 @@
-# This shared arena demonstrates RSCTF's signed API referee. The referee is
+# This shared hill demonstrates RSCTF's signed Leaderboard referee. The referee is
 # deployed separately; its HMAC secret must never enter this challenge image.
 name: "King of the Hill Demo: Proof Arena"
 author: "rsctf documentation team"
 description: |
-  This is an API-native arena, not an exclusive boot2root hill. Every team can
+  This is a Leaderboard hill, not an exclusive boot2root hill. Every team can
   score during the same tick.
 
   POST your current KotH token as JSON to `/start`. The response contains a
@@ -11,12 +11,13 @@ description: |
   `nonce + ":" + counter` begins with four zero hexadecimal digits, then POST
   `{"sessionId":"...","counter":123}` to `/solve` before it expires.
 
-  RSCTF independently normalizes verified activity, proof strength and speed
-  objectives, and valid-action integrity. A four-zero proof is valid; finding a
+  RSCTF independently normalizes verified activity plus the stable
+  `proof-strength` and `solve-speed` objectives. A four-zero proof is valid; finding a
   fifth leading zero improves strength but takes time, so the two objective
-  channels create a real trade-off. Solving repeatedly matters, while guessing
-  lowers integrity. The external referee sends evidence, never points or raw
-  bearer tokens.
+  channels create a real trade-off. Solving repeatedly matters; failed guesses
+  do not award evidence or subtract points. Consistent first place earns a
+  bounded continuity bonus. The external referee sends evidence, never points
+  or raw bearer tokens.
 type: KingOfTheHill
 category: Web
 disableBloodBonus: true

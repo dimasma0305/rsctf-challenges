@@ -1,4 +1,4 @@
-"""Read-only functional checker for the API-native KotH arena demo."""
+"""Read-only functional checker for the Leaderboard KotH demo."""
 
 from http.client import HTTPConnection, HTTPException
 import json
@@ -45,7 +45,7 @@ def check_health(context: KothContext) -> None:
 @checker
 def check_banner(context: KothContext) -> None:
     expected_banner = (
-        "rsctf API KotH arena: solve one-use puzzles; every team can score"
+        "rsctf Leaderboard KotH: solve one-use puzzles; every team can score"
     )
     if http_get(context, "/") != expected_banner:
         raise Mumble("the public hill banner was incorrect")

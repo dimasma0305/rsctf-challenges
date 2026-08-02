@@ -1,35 +1,44 @@
-# Trusted API arena referee
+# Trusted Leaderboard referee
 
-This process runs outside the player-facing arena. It reads the arena's bounded
+This process runs outside the player-facing hill. It reads the hill's bounded
 event feed, filters events against the current capability hashes supplied by
 RSCTF, aggregates integer evidence, signs the exact snapshot, and submits it to
 RSCTF. It never sends raw capabilities or points.
 
 ## Security boundary
 
-Never copy `RSCTF_KOTH_OBSERVER_SECRET` into `src/`, the arena image, a browser,
+Never copy `RSCTF_KOTH_OBSERVER_SECRET` into `src/`, the hill image, a browser,
 or a public log. Run the referee under a dedicated identity with:
 
-- HTTPS to RSCTF and the private arena endpoint;
+- HTTPS to RSCTF and the private hill endpoint;
 - synchronized system time;
 - a persistent state path writable only by that identity;
 - restricted network egress; and
 - monitoring for feed gaps, context conflicts, and recognized-team mismatch.
 
 The repository importer builds only `src/`. This sibling `observer/` directory
-is therefore not copied into the attackable image.
+is therefore not copied into the attackable image. HMAC proves which referee
+sent a snapshot; it does not prove that the referee is honest. Keep the
+referee, its secret, and its state outside every player-controlled workload and
+restrict its evidence access to read-only endpoints.
 
 ## What the example proves
 
-The arena issues an unpredictable, expiring, one-use proof-of-work session.
+The hill issues an unpredictable, expiring, one-use proof-of-work session.
 Every solve attempt becomes an ordered event containing only the capability
 hash, validity, proof-strength budget, and speed budget.
 
 The referee produces:
 
 - activity: up to five valid solutions per tick;
-- objectives: independently normalized proof strength and speed;
-- integrity: valid attempts divided by all solve attempts.
+- ordered objective IDs: `proof-strength`, then `solve-speed`;
+- objectives: independently normalized evidence from completed proofs only.
+
+Failed attempts remain challenge telemetry; they neither add evidence nor
+subtract points. A team quota is keyed by the capability hash rather than its
+source IP, so changing IP addresses cannot let one team exhaust the shared
+admission budget. Size the global budget for the rehearsed team count: a
+field-wide resource failure voids the tick but can still disrupt play.
 
 Unknown hashes are removed before submission. A cursor retention gap fails
 closed. State is written atomically with mode `0600`, so a restart does not
@@ -38,7 +47,7 @@ duplicate accepted evidence or lose its strictly increasing timestamp.
 ## RSCTF setup
 
 1. Import the example and leave the game hidden with scoring paused.
-2. Open **A&D / KotH operations**, select KotH, and choose **Enable API**.
+2. Open **A&D / KotH operations**, select KotH, and choose **Enable Leaderboard**.
 3. Copy the one-time secret.
 4. Start the official lifecycle while paused.
 5. Configure a stable referee-reachable arena URL.
@@ -57,7 +66,7 @@ Python 3.10 or newer is sufficient; no third-party package is required.
 export RSCTF_ORIGIN=https://ctf.example
 export RSCTF_GAME_ID=7
 export RSCTF_CHALLENGE_ID=42
-export RSCTF_KOTH_HILL_URL=https://api-arena.internal.example
+export RSCTF_KOTH_HILL_URL=https://leaderboard-hill.internal.example
 export RSCTF_KOTH_STATE_FILE=/var/lib/rsctf-koth-referee/state.json
 read -r -s -p 'Referee secret: ' RSCTF_KOTH_OBSERVER_SECRET
 printf '\n'
@@ -105,5 +114,5 @@ python3 scripts/test-koth-observer.py
 ```
 
 The test verifies HMAC scope, initial zero, objective budgets, raw-token
-absence, unknown-hash filtering, deduplication, persistent restart, round
+absence, stable objective identity, unknown-hash filtering, deduplication, persistent restart, round
 fencing, feed-gap failure, redirect refusal, and HTTPS-by-default URL checks.
