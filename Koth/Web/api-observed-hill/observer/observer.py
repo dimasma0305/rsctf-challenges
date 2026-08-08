@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+from fractions import Fraction
 import hashlib
 import hmac
 import json
@@ -22,7 +23,10 @@ import urllib.request
 MAX_RESPONSE_BYTES = 2 * 1_024 * 1_024
 MAX_SUBMISSION_BYTES = 512 * 1_024
 MAX_TEAMS = 2_000
+MAX_WAVES = 64
 MAX_PAGE_EVENTS = 1_000
+WAVE_DURATION_MS = 30_000
+WAVE_FINALIZATION_LAG_MS = 2_000
 USER_AGENT = "rsctf-leaderboard-koth-example/3"
 OBJECTIVE_IDS = ("proof-strength", "solve-speed")
 
@@ -71,6 +75,7 @@ class TeamTotals:
     strength_possible: int = 0
     speed_earned: int = 0
     speed_possible: int = 0
+    first_completion_cursor: int | None = None
 
 
 @dataclass(frozen=True)
@@ -214,7 +219,9 @@ class RefereeClient:
         self.config = config
         self.context: RoundContext | None = None
         self.cursor = 0
-        self.teams: dict[str, TeamTotals] = {}
+        self.waves: dict[int, dict[str, TeamTotals]] = {}
+        self.finalized_crowns: dict[int, str | None] = {}
+        self.crown_token_hash: str | None = None
         self.last_submitted_digest: str | None = None
         self.last_timestamp_ms = 0
         self._load_state()
@@ -234,8 +241,8 @@ class RefereeClient:
             "cycleNumber",
             "resetAttempt",
             "roundNumber",
-            "roundStartsAt",
-            "roundEndsAt",
+            "waveWindowStartsAt",
+            "waveWindowEndsAt",
             "eligibleTokenHashes",
             "objectiveIds",
             "objectiveSchemaHash",
@@ -264,8 +271,15 @@ class RefereeClient:
             or objective_schema_hash != _objective_schema_hash(OBJECTIVE_IDS)
         ):
             raise RuntimeError("RSCTF returned a different Leaderboard objective schema")
-        starts_at = _integer(value["roundStartsAt"], 0, 2**63 - 1, "roundStartsAt")
-        ends_at = _integer(value["roundEndsAt"], starts_at + 1, 2**63 - 1, "roundEndsAt")
+        starts_at = _integer(
+            value["waveWindowStartsAt"], 0, 2**63 - 1, "waveWindowStartsAt"
+        )
+        ends_at = _integer(
+            value["waveWindowEndsAt"],
+            starts_at + 1,
+            2**63 - 1,
+            "waveWindowEndsAt",
+        )
         return RoundContext(
             opaque=opaque,
             cycle_number=_integer(value["cycleNumber"], 1, 2**31 - 1, "cycleNumber"),
@@ -350,52 +364,129 @@ class RefereeClient:
             possible = _integer(ratio["possible"], 1, 1_000_000_000_000, f"{name}.possible")
             earned = _integer(ratio["earned"], 0, possible, f"{name}.earned")
             ratios.append((earned, possible))
-        if (
-            occurred_at < context.starts_at
-            or occurred_at >= context.ends_at
-            or token_hash not in context.eligible_hashes
-        ):
+        if token_hash not in context.eligible_hashes:
             return
-        if token_hash not in self.teams and len(self.teams) >= MAX_TEAMS:
-            raise RuntimeError("arena evidence exceeded the eligible roster bound")
-        totals = self.teams.setdefault(token_hash, TeamTotals())
+        wave_start = occurred_at // WAVE_DURATION_MS * WAVE_DURATION_MS
+        wave_end = wave_start + WAVE_DURATION_MS
+        if wave_end < context.starts_at or (
+            context.round_number <= 1 and wave_end == context.starts_at
+        ):
+            # Ignore history before this event began. A wave may cross a later
+            # settlement boundary: its server-confirmed end time assigns it to
+            # exactly one contiguous RSCTF window.
+            return
+        if wave_start in self.finalized_crowns:
+            raise RuntimeError("arena appended evidence to an already finalized wave")
+        wave = self.waves.setdefault(wave_start, {})
+        if token_hash not in wave and sum(len(teams) for teams in self.waves.values()) >= MAX_TEAMS:
+            raise RuntimeError("arena evidence exceeded the 2,000 team-wave row bound")
+        totals = wave.setdefault(token_hash, TeamTotals())
         totals.attempts += 1
         if event["valid"]:
             totals.completed_actions += 1
+            if totals.first_completion_cursor is None:
+                totals.first_completion_cursor = int(event["cursor"])
             totals.strength_earned += ratios[0][0]
             totals.strength_possible += ratios[0][1]
             totals.speed_earned += ratios[1][0]
             totals.speed_possible += ratios[1][1]
 
-    def _body(self, context: RoundContext) -> bytes:
-        teams = []
-        for token_hash, totals in sorted(self.teams.items()):
-            if totals.completed_actions == 0:
-                continue
-            teams.append(
+    @staticmethod
+    def _performance(totals: TeamTotals) -> Fraction:
+        return (
+            Fraction(totals.strength_earned, totals.strength_possible)
+            + Fraction(totals.speed_earned, totals.speed_possible)
+        ) / 2
+
+    def _finalize_wave(self, wave_start: int) -> None:
+        completed = {
+            token_hash: totals
+            for token_hash, totals in self.waves.get(wave_start, {}).items()
+            if totals.completed_actions > 0
+        }
+        if not completed:
+            crown = None
+        else:
+            best = max(self._performance(totals) for totals in completed.values())
+            tied = [
+                token_hash
+                for token_hash, totals in completed.items()
+                if self._performance(totals) == best
+            ]
+            if self.crown_token_hash in tied:
+                crown = self.crown_token_hash
+            else:
+                crown = min(
+                    tied,
+                    key=lambda token_hash: (
+                        completed[token_hash].first_completion_cursor,
+                        token_hash,
+                    ),
+                )
+        self.finalized_crowns[wave_start] = crown
+        self.crown_token_hash = crown
+
+    def _body(self, context: RoundContext, current_time_ms: int) -> bytes:
+        cutoff = current_time_ms - WAVE_FINALIZATION_LAG_MS
+        first_wave_end = (
+            (context.starts_at + WAVE_DURATION_MS - 1) // WAVE_DURATION_MS
+        ) * WAVE_DURATION_MS
+        if context.round_number <= 1 and first_wave_end == context.starts_at:
+            first_wave_end += WAVE_DURATION_MS
+        finalized_starts = []
+        wave_end = first_wave_end
+        while wave_end < context.ends_at:
+            if wave_end > cutoff:
+                break
+            wave_start = wave_end - WAVE_DURATION_MS
+            finalized_starts.append(wave_start)
+            wave_end += WAVE_DURATION_MS
+        if len(finalized_starts) > MAX_WAVES:
+            raise RuntimeError("settlement window contains more than 64 finalized arena waves")
+        for wave_start in finalized_starts:
+            if wave_start not in self.finalized_crowns:
+                self._finalize_wave(wave_start)
+
+        waves = []
+        team_wave_rows = 0
+        for wave_start in finalized_starts:
+            crown = self.finalized_crowns[wave_start]
+            teams = []
+            for token_hash, totals in sorted(self.waves.get(wave_start, {}).items()):
+                if totals.completed_actions == 0:
+                    continue
+                teams.append(
+                    {
+                        "activity": {"earned": 1, "possible": 1},
+                        "isCrown": token_hash == crown,
+                        "objectives": [
+                            {
+                                "earned": totals.strength_earned,
+                                "possible": totals.strength_possible,
+                            },
+                            {
+                                "earned": totals.speed_earned,
+                                "possible": totals.speed_possible,
+                            },
+                        ],
+                        "tokenHash": token_hash,
+                    }
+                )
+            team_wave_rows += len(teams)
+            waves.append(
                 {
-                    "activity": {
-                        "earned": min(totals.completed_actions, 5),
-                        "possible": 5,
-                    },
-                    "objectives": [
-                        {
-                            "earned": totals.strength_earned,
-                            "possible": totals.strength_possible,
-                        },
-                        {
-                            "earned": totals.speed_earned,
-                            "possible": totals.speed_possible,
-                        },
-                    ],
-                    "tokenHash": token_hash,
+                    "endedAtUnixMs": wave_start + WAVE_DURATION_MS,
+                    "teams": teams,
+                    "waveId": f"proof-{wave_start}",
                 }
             )
+        if team_wave_rows > MAX_TEAMS:
+            raise RuntimeError("snapshot exceeds RSCTF's 2,000 team-wave row bound")
         body = json.dumps(
             {
                 "context": context.opaque,
                 "objectiveIds": list(OBJECTIVE_IDS),
-                "teams": teams,
+                "waves": waves,
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -434,10 +525,19 @@ class RefereeClient:
             },
         )
         value = _request_json(request, self.config.timeout_seconds)
-        expected_teams = len(json.loads(body)["teams"])
+        decoded = json.loads(body)
+        expected_waves = len(decoded["waves"])
+        expected_teams = len(
+            {
+                team["tokenHash"]
+                for wave in decoded["waves"]
+                for team in wave["teams"]
+            }
+        )
         if (
             value.get("accepted") is not True
             or value.get("roundNumber") != context.round_number
+            or value.get("submittedWaves") != expected_waves
             or value.get("submittedTeams") != expected_teams
             or value.get("recognizedTeams") != expected_teams
         ):
@@ -447,22 +547,37 @@ class RefereeClient:
     def poll_once(self) -> bool:
         context = self.fetch_context()
         if self.context is None or context.opaque != self.context.opaque:
-            if self.context is not None and (
+            runtime_changed = self.context is not None and (
                 context.cycle_number != self.context.cycle_number
                 or context.reset_attempt != self.context.reset_attempt
-            ):
+            )
+            if runtime_changed:
                 # A crown transition replaced the arena, so its local evidence
                 # cursor restarted with the pristine container.
                 self.cursor = 0
+                self.waves = {}
+                self.finalized_crowns = {}
             self.context = context
-            self.teams = {}
+            # A normal RSCTF round change must retain any challenge wave that
+            # crossed the settlement boundary. Older completed waves no longer
+            # belong to a future request and can be discarded safely.
+            self.waves = {
+                start: rows
+                for start, rows in self.waves.items()
+                if start + WAVE_DURATION_MS >= context.starts_at
+            }
+            self.finalized_crowns = {
+                start: crown
+                for start, crown in self.finalized_crowns.items()
+                if start + WAVE_DURATION_MS >= context.starts_at
+            }
             self.last_submitted_digest = None
         else:
             # Hash membership is part of the context contract even though the
             # opaque fence already changes with each issuance window.
             self.context = context
         self._consume_feed(context)
-        body = self._body(context)
+        body = self._body(context, time.time_ns() // 1_000_000)
         digest = hashlib.sha256(body).hexdigest()
         if digest == self.last_submitted_digest:
             self._save_state()
@@ -473,6 +588,7 @@ class RefereeClient:
         print(
             "accepted KotH Leaderboard snapshot:"
             f" round={accepted.get('roundNumber')}"
+            f" waves={accepted.get('submittedWaves')}"
             f" teams={accepted.get('recognizedTeams')}"
             f" cycle={accepted.get('cycleNumber')}"
             f" reset={accepted.get('resetAttempt')}",
@@ -489,9 +605,11 @@ class RefereeClient:
             if set(value) != {
                 "context",
                 "cursor",
+                "crownTokenHash",
+                "finalizedCrowns",
                 "lastSubmittedDigest",
                 "lastTimestampMs",
-                "teams",
+                "waves",
             }:
                 raise ValueError("unexpected state fields")
             context = value["context"]
@@ -510,11 +628,32 @@ class RefereeClient:
             self.cursor = int(value["cursor"])
             self.last_submitted_digest = value["lastSubmittedDigest"]
             self.last_timestamp_ms = int(value["lastTimestampMs"])
-            self.teams = {
-                token_hash: TeamTotals(**totals)
-                for token_hash, totals in value["teams"].items()
+            self.crown_token_hash = value["crownTokenHash"]
+            if self.crown_token_hash is not None and not _canonical_hash(
+                self.crown_token_hash
+            ):
+                raise ValueError("invalid persisted Crown identity")
+            self.waves = {
+                int(wave_start): {
+                    token_hash: TeamTotals(**totals)
+                    for token_hash, totals in teams.items()
+                }
+                for wave_start, teams in value["waves"].items()
             }
-            if self.cursor < 0 or self.last_timestamp_ms < 0:
+            self.finalized_crowns = {
+                int(wave_start): crown
+                for wave_start, crown in value["finalizedCrowns"].items()
+            }
+            if (
+                self.cursor < 0
+                or self.last_timestamp_ms < 0
+                or any(wave_start < 0 for wave_start in self.waves)
+                or any(wave_start < 0 for wave_start in self.finalized_crowns)
+                or any(
+                    crown is not None and not _canonical_hash(crown)
+                    for crown in self.finalized_crowns.values()
+                )
+            ):
                 raise ValueError("negative state coordinate")
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise ValueError(f"invalid referee state file {path}") from error
@@ -539,11 +678,19 @@ class RefereeClient:
         value = {
             "context": context,
             "cursor": self.cursor,
+            "crownTokenHash": self.crown_token_hash,
+            "finalizedCrowns": {
+                str(wave_start): crown
+                for wave_start, crown in sorted(self.finalized_crowns.items())
+            },
             "lastSubmittedDigest": self.last_submitted_digest,
             "lastTimestampMs": self.last_timestamp_ms,
-            "teams": {
-                token_hash: asdict(totals)
-                for token_hash, totals in sorted(self.teams.items())
+            "waves": {
+                str(wave_start): {
+                    token_hash: asdict(totals)
+                    for token_hash, totals in sorted(teams.items())
+                }
+                for wave_start, teams in sorted(self.waves.items())
             },
         }
         path.parent.mkdir(parents=True, exist_ok=True)

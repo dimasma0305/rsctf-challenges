@@ -49,8 +49,9 @@ def load_observer():
 class Fixture:
     context = "1" * 64
     round_number = 3
-    starts_at = 1_000
-    ends_at = 10_000
+    starts_at = 60_000
+    ends_at = 180_001
+    now_ms = 65_000
     events: list[dict[str, object]] = []
     gap = False
     observations: list[bytes] = []
@@ -84,8 +85,8 @@ class Handler(BaseHTTPRequestHandler):
                     "cycleNumber": 2,
                     "resetAttempt": 0,
                     "roundNumber": Fixture.round_number,
-                    "roundStartsAt": Fixture.starts_at,
-                    "roundEndsAt": Fixture.ends_at,
+                    "waveWindowStartsAt": Fixture.starts_at,
+                    "waveWindowEndsAt": Fixture.ends_at,
                     "eligibleTokenHashes": [TOKEN_HASH, OTHER_VALID_HASH],
                     "objectiveIds": OBJECTIVE_IDS,
                     "objectiveSchemaHash": objective_schema_hash(),
@@ -136,6 +137,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json(409, {"title": "out of order", "status": 409})
             return
         decoded = json.loads(body)
+        team_hashes = {
+            team["tokenHash"]
+            for wave in decoded["waves"]
+            for team in wave["teams"]
+        }
         Fixture.timestamps.append(int(timestamp))
         Fixture.observations.append(body)
         self._json(
@@ -145,8 +151,9 @@ class Handler(BaseHTTPRequestHandler):
                 "cycleNumber": 2,
                 "resetAttempt": 0,
                 "roundNumber": Fixture.round_number,
-                "submittedTeams": len(decoded["teams"]),
-                "recognizedTeams": len(decoded["teams"]),
+                "submittedWaves": len(decoded["waves"]),
+                "submittedTeams": len(team_hashes),
+                "recognizedTeams": len(team_hashes),
                 "acceptedAt": Fixture.starts_at + 2,
             },
         )
@@ -155,10 +162,15 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def evidence(cursor: int, token_hash: str, valid: bool) -> dict[str, object]:
+def evidence(
+    cursor: int,
+    token_hash: str,
+    valid: bool,
+    occurred_at: int | None = None,
+) -> dict[str, object]:
     return {
         "cursor": cursor,
-        "occurredAt": 2_000 + cursor,
+        "occurredAt": occurred_at or Fixture.starts_at + 1_000 + cursor,
         "tokenHash": token_hash,
         "valid": valid,
         "strength": {"earned": 4 if valid else 0, "possible": 5},
@@ -168,6 +180,7 @@ def evidence(cursor: int, token_hash: str, valid: bool) -> dict[str, object]:
 
 def main() -> None:
     observer = load_observer()
+    observer.time.time_ns = lambda: Fixture.now_ms * 1_000_000
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -197,12 +210,14 @@ def main() -> None:
                 evidence(2, TOKEN_HASH, True),
                 evidence(3, UNKNOWN_HASH, True),
             ]
+            Fixture.now_ms = 92_000
             if not client.poll_once():
-                raise RuntimeError("new verified arena actions were not submitted")
+                raise RuntimeError("the first finalized arena wave was not submitted")
 
             decoded = [json.loads(body) for body in Fixture.observations]
             expected_team = {
-                "activity": {"earned": 1, "possible": 5},
+                "activity": {"earned": 1, "possible": 1},
+                "isCrown": True,
                 "objectives": [
                     {"earned": 4, "possible": 5},
                     {"earned": 50_000, "possible": 60_000},
@@ -213,12 +228,29 @@ def main() -> None:
                 {
                     "context": "1" * 64,
                     "objectiveIds": OBJECTIVE_IDS,
-                    "teams": [],
+                    "waves": [
+                        {
+                            "endedAtUnixMs": 60_000,
+                            "teams": [],
+                            "waveId": "proof-30000",
+                        }
+                    ],
                 },
                 {
                     "context": "1" * 64,
                     "objectiveIds": OBJECTIVE_IDS,
-                    "teams": [expected_team],
+                    "waves": [
+                        {
+                            "endedAtUnixMs": 60_000,
+                            "teams": [],
+                            "waveId": "proof-30000",
+                        },
+                        {
+                            "endedAtUnixMs": 90_000,
+                            "teams": [expected_team],
+                            "waveId": "proof-60000",
+                        }
+                    ],
                 },
             ]:
                 raise RuntimeError(f"unexpected arena snapshot bodies: {decoded!r}")
@@ -233,21 +265,56 @@ def main() -> None:
             if os.stat(state_file).st_mode & 0o077:
                 raise RuntimeError("referee state file is accessible to another OS user")
 
+            Fixture.events.extend(
+                [
+                    evidence(4, OTHER_VALID_HASH, True, 91_004),
+                    evidence(5, TOKEN_HASH, True, 91_005),
+                ]
+            )
+            Fixture.now_ms = 122_000
+            if not restarted.poll_once():
+                raise RuntimeError("the tied second wave was not submitted")
+            tied_wave = json.loads(Fixture.observations[-1])["waves"][-1]
+            tied_crowns = [
+                team["tokenHash"] for team in tied_wave["teams"] if team["isCrown"]
+            ]
+            if tied_crowns != [TOKEN_HASH]:
+                raise RuntimeError("a participating incumbent did not retain a tied Crown")
+
+            Fixture.events.append(evidence(6, OTHER_VALID_HASH, True, 121_006))
+            Fixture.now_ms = 152_000
+            if not restarted.poll_once():
+                raise RuntimeError("the third finalized wave was not submitted")
+            replacement_wave = json.loads(Fixture.observations[-1])["waves"][-1]
+            replacement_crowns = [
+                team["tokenHash"]
+                for team in replacement_wave["teams"]
+                if team["isCrown"]
+            ]
+            if replacement_crowns != [OTHER_VALID_HASH]:
+                raise RuntimeError("an absent incumbent retained the Crown")
+
+            # This wave crosses the RSCTF settlement boundary and is only
+            # observed after the next context appears. Its end time assigns it
+            # to that next window, so it must not disappear in a gap.
+            Fixture.events.append(evidence(7, TOKEN_HASH, True, 179_000))
             Fixture.context = "2" * 64
             Fixture.round_number = 4
-            Fixture.starts_at = 10_000
-            Fixture.ends_at = 20_000
+            Fixture.starts_at = 180_000
+            Fixture.ends_at = 300_001
+            Fixture.now_ms = 185_000
             if not restarted.poll_once():
-                raise RuntimeError("a new scoring tick did not receive explicit zero evidence")
-            if json.loads(Fixture.observations[-1]) != {
-                "context": "2" * 64,
-                "objectiveIds": OBJECTIVE_IDS,
-                "teams": [],
-            }:
-                raise RuntimeError("a previous tick's evidence carried into a new tick")
+                raise RuntimeError("a boundary-crossing wave was not settled")
+            boundary = json.loads(Fixture.observations[-1])
+            if (
+                boundary["context"] != "2" * 64
+                or [wave["waveId"] for wave in boundary["waves"]]
+                != ["proof-150000"]
+            ):
+                raise RuntimeError("a boundary-crossing wave was lost or duplicated")
 
             Fixture.gap = True
-            Fixture.events.append(evidence(4, TOKEN_HASH, True))
+            Fixture.events.append(evidence(8, TOKEN_HASH, True))
             try:
                 restarted.poll_once()
             except RuntimeError as error:
@@ -285,7 +352,7 @@ def main() -> None:
 
     print(
         "OK: arena referee HMAC, normalization input, hash filtering, "
-        "tick fencing, persistence, and fail-closed feed passed."
+        "wave fencing, Crown ties, persistence, and fail-closed feed passed."
     )
 
 

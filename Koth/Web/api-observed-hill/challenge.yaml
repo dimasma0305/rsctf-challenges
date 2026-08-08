@@ -4,7 +4,7 @@ name: "King of the Hill Demo: Proof Arena"
 author: "rsctf documentation team"
 description: |
   This is a Leaderboard hill, not an exclusive boot2root hill. Every team can
-  score during the same tick.
+  score during the same challenge-native wave.
 
   POST your current KotH token as JSON to `/start`. The response contains a
   one-use nonce. Find a counter whose SHA-256 digest of
@@ -14,10 +14,12 @@ description: |
   RSCTF independently normalizes verified activity plus the stable
   `proof-strength` and `solve-speed` objectives. A four-zero proof is valid; finding a
   fifth leading zero improves strength but takes time, so the two objective
-  channels create a real trade-off. Solving repeatedly matters; failed guesses
-  do not award evidence or subtract points. Consistent first place earns a
-  bounded continuity bonus. The external referee sends evidence, never points
-  or raw bearer tokens.
+  channels create a real trade-off. Each 30-second wave is independent, and a
+  fresh valid proof is required to score it. Failed guesses do not award
+  evidence or subtract points. RSCTF awards 95% from relative performance and
+  5% to that wave's first-place Crown; an incumbent only breaks an exact tie
+  when it also completed the current wave. The external referee sends evidence,
+  never points or raw bearer tokens.
 type: KingOfTheHill
 category: Web
 disableBloodBonus: true

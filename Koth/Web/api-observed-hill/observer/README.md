@@ -28,11 +28,19 @@ The hill issues an unpredictable, expiring, one-use proof-of-work session.
 Every solve attempt becomes an ordered event containing only the capability
 hash, validity, proof-strength budget, and speed budget.
 
-The referee produces:
+The referee divides play into challenge-native 30-second proof waves. It waits
+two seconds after each boundary, freezes the result, and produces:
 
-- activity: up to five valid solutions per tick;
+- completed activity `1 / 1` for every team with at least one valid proof in
+  that wave;
 - ordered objective IDs: `proof-strength`, then `solve-speed`;
 - objectives: independently normalized evidence from completed proofs only.
+
+For each positive wave, the best normalized result receives the Crown. An
+exact tie keeps a participating incumbent; otherwise the earliest confirmed
+proof wins, with the capability hash as the final deterministic fallback. An
+absent incumbent loses the Crown. RSCTF then applies its constant 95%
+performance plus 5% Crown formula; the referee never sends points.
 
 Failed attempts remain challenge telemetry; they neither add evidence nor
 subtract points. A team quota is keyed by the capability hash rather than its
@@ -52,7 +60,8 @@ duplicate accepted evidence or lose its strictly increasing timestamp.
 4. Start the official lifecycle while paused.
 5. Configure a stable referee-reachable arena URL.
 6. Run `--once`, confirm a current explicit-zero snapshot, exercise one valid
-   and one invalid player action, run `--once` again, and inspect the board.
+   and one invalid player action, wait for the wave to finalize, run `--once`
+   again, and inspect the board.
 7. Run continuously and resume scoring.
 
 The `Api` source is frozen with the official hill. A repository rescan can
@@ -90,20 +99,29 @@ For loopback development only, add `--allow-insecure-http`.
 
 On every poll, the referee:
 
-1. fetches the exact active round context and eligible hashes;
-2. resets accumulated team evidence on a new round;
+1. fetches the exact active settlement context and eligible hashes;
+2. retains a wave across a normal round change when that wave crosses the
+   settlement boundary, assigning it by its server-confirmed end time;
 3. resets its feed cursor only when a new cycle/reset replaces the container;
 4. drains bounded evidence pages and rejects a cursor gap;
-5. ignores events outside the active round or eligible hash set;
-6. constructs one compact, deterministic signed body;
-7. posts only when the current snapshot changed; and
-8. requires submitted and recognized team counts to match.
+5. ignores pre-event history and events outside the eligible hash set;
+6. freezes every complete 30-second wave after a two-second ingestion grace,
+   including an empty team list when nobody finished;
+7. constructs one compact, deterministic signed body containing every
+   finalized wave in the current settlement window;
+8. posts only when the current snapshot changed; and
+9. requires submitted-wave and recognized-team counts to match.
 
-RSCTF waits at most six seconds for the first exact current-round snapshot,
-then may sample at any point in the round. Updating evidence during the short
-functional probe voids that tick rather than producing inconsistent scoring.
-Keep the polling interval below that arrival window and monitor void frequency
-during rehearsal.
+RSCTF publishes contiguous settlement windows that close 20 seconds behind
+the live round boundary. It waits for the cutoff before sampling, then allows
+a bounded arrival period. A snapshot with no finalized waves is a valid fence
+and awards nothing. Finalized waves are immutable; late evidence for one fails
+closed instead of rewriting history. Updating the snapshot during the short
+functional probe voids that checker round rather than producing inconsistent
+scoring. Keep the polling interval short and monitor void frequency during
+rehearsal. The wire contract caps one snapshot at 64 waves and 2,000 total
+team-wave rows. Treat the last published window end as the event's scoring
+cutoff and stop opening waves that cannot finalize before it.
 
 ## Regression test
 
@@ -113,6 +131,8 @@ From the challenge repository root:
 python3 scripts/test-koth-observer.py
 ```
 
-The test verifies HMAC scope, initial zero, objective budgets, raw-token
-absence, stable objective identity, unknown-hash filtering, deduplication, persistent restart, round
-fencing, feed-gap failure, redirect refusal, and HTTPS-by-default URL checks.
+The test verifies HMAC scope, an initial empty wave ledger, finalized objective
+budgets, the incumbent/absence Crown tie rule, raw-token absence, stable
+objective identity, unknown-hash filtering, deduplication, persistent restart,
+round fencing, feed-gap failure, redirect refusal, and HTTPS-by-default URL
+checks.
