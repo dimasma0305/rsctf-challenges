@@ -51,6 +51,7 @@ class Fixture:
     round_number = 3
     starts_at = 60_000
     ends_at = 180_001
+    cycle_ends_at = 240_001
     now_ms = 65_000
     events: list[dict[str, object]] = []
     gap = False
@@ -83,6 +84,7 @@ class Handler(BaseHTTPRequestHandler):
                     "apiVersion": "v1",
                     "context": Fixture.context,
                     "cycleNumber": 2,
+                    "cycleEndsAt": Fixture.cycle_ends_at,
                     "resetAttempt": 0,
                     "roundNumber": Fixture.round_number,
                     "waveWindowStartsAt": Fixture.starts_at,
@@ -278,8 +280,8 @@ def main() -> None:
             tied_crowns = [
                 team["tokenHash"] for team in tied_wave["teams"] if team["isCrown"]
             ]
-            if tied_crowns != [TOKEN_HASH]:
-                raise RuntimeError("a participating incumbent did not retain a tied Crown")
+            if tied_crowns:
+                raise RuntimeError("an exact top-score tie incorrectly received a Crown")
 
             Fixture.events.append(evidence(6, OTHER_VALID_HASH, True, 121_006))
             Fixture.now_ms = 152_000
@@ -292,7 +294,7 @@ def main() -> None:
                 if team["isCrown"]
             ]
             if replacement_crowns != [OTHER_VALID_HASH]:
-                raise RuntimeError("an absent incumbent retained the Crown")
+                raise RuntimeError("the unique completed leader did not receive the Crown")
 
             # This wave crosses the RSCTF settlement boundary and is only
             # observed after the next context appears. Its end time assigns it
@@ -302,6 +304,7 @@ def main() -> None:
             Fixture.round_number = 4
             Fixture.starts_at = 180_000
             Fixture.ends_at = 300_001
+            Fixture.cycle_ends_at = 300_001
             Fixture.now_ms = 185_000
             if not restarted.poll_once():
                 raise RuntimeError("a boundary-crossing wave was not settled")
@@ -352,7 +355,7 @@ def main() -> None:
 
     print(
         "OK: arena referee HMAC, normalization input, hash filtering, "
-        "wave fencing, Crown ties, persistence, and fail-closed feed passed."
+        "wave fencing, unique-leader Crowns, persistence, and fail-closed feed passed."
     )
 
 

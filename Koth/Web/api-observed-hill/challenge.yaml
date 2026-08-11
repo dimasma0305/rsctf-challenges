@@ -17,8 +17,9 @@ description: |
   channels create a real trade-off. Each 30-second wave is independent, and a
   fresh valid proof is required to score it. Failed guesses do not award
   evidence or subtract points. RSCTF awards 95% from relative performance and
-  5% to that wave's first-place Crown; an incumbent only breaks an exact tie
-  when it also completed the current wave. The external referee sends evidence,
+  5% to that wave's first-place Crown. Only one unique leader receives it; on
+  an exact top-score tie, every tied team receives full relative-performance
+  credit and no team receives the Crown. The external referee sends evidence,
   never points or raw bearer tokens.
 type: KingOfTheHill
 category: Web

@@ -27,7 +27,7 @@ MAX_WAVES = 64
 MAX_PAGE_EVENTS = 1_000
 WAVE_DURATION_MS = 30_000
 WAVE_FINALIZATION_LAG_MS = 2_000
-USER_AGENT = "rsctf-leaderboard-koth-example/3"
+USER_AGENT = "rsctf-leaderboard-koth-example/4"
 OBJECTIVE_IDS = ("proof-strength", "solve-speed")
 
 
@@ -86,6 +86,7 @@ class RoundContext:
     round_number: int
     starts_at: int
     ends_at: int
+    cycle_ends_at: int
     eligible_hashes: frozenset[str]
     objective_ids: tuple[str, ...]
     objective_schema_hash: str | None
@@ -239,6 +240,7 @@ class RefereeClient:
             "apiVersion",
             "context",
             "cycleNumber",
+            "cycleEndsAt",
             "resetAttempt",
             "roundNumber",
             "waveWindowStartsAt",
@@ -280,6 +282,12 @@ class RefereeClient:
             2**63 - 1,
             "waveWindowEndsAt",
         )
+        cycle_ends_at = _integer(
+            value["cycleEndsAt"],
+            ends_at,
+            2**63 - 1,
+            "cycleEndsAt",
+        )
         return RoundContext(
             opaque=opaque,
             cycle_number=_integer(value["cycleNumber"], 1, 2**31 - 1, "cycleNumber"),
@@ -287,6 +295,7 @@ class RefereeClient:
             round_number=_integer(value["roundNumber"], 1, 2**31 - 1, "roundNumber"),
             starts_at=starts_at,
             ends_at=ends_at,
+            cycle_ends_at=cycle_ends_at,
             eligible_hashes=frozenset(hashes),
             objective_ids=tuple(objective_ids),
             objective_schema_hash=objective_schema_hash,
@@ -413,16 +422,7 @@ class RefereeClient:
                 for token_hash, totals in completed.items()
                 if self._performance(totals) == best
             ]
-            if self.crown_token_hash in tied:
-                crown = self.crown_token_hash
-            else:
-                crown = min(
-                    tied,
-                    key=lambda token_hash: (
-                        completed[token_hash].first_completion_cursor,
-                        token_hash,
-                    ),
-                )
+            crown = tied[0] if len(tied) == 1 else None
         self.finalized_crowns[wave_start] = crown
         self.crown_token_hash = crown
 
@@ -621,6 +621,7 @@ class RefereeClient:
                     round_number=context["roundNumber"],
                     starts_at=context["startsAt"],
                     ends_at=context["endsAt"],
+                    cycle_ends_at=context["cycleEndsAt"],
                     eligible_hashes=frozenset(context["eligibleHashes"]),
                     objective_ids=tuple(context["objectiveIds"]),
                     objective_schema_hash=context["objectiveSchemaHash"],
@@ -671,6 +672,7 @@ class RefereeClient:
                 "roundNumber": self.context.round_number,
                 "startsAt": self.context.starts_at,
                 "endsAt": self.context.ends_at,
+                "cycleEndsAt": self.context.cycle_ends_at,
                 "eligibleHashes": sorted(self.context.eligible_hashes),
                 "objectiveIds": list(self.context.objective_ids),
                 "objectiveSchemaHash": self.context.objective_schema_hash,

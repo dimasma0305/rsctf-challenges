@@ -36,10 +36,9 @@ two seconds after each boundary, freezes the result, and produces:
 - ordered objective IDs: `proof-strength`, then `solve-speed`;
 - objectives: independently normalized evidence from completed proofs only.
 
-For each positive wave, the best normalized result receives the Crown. An
-exact tie keeps a participating incumbent; otherwise the earliest confirmed
-proof wins, with the capability hash as the final deterministic fallback. An
-absent incumbent loses the Crown. RSCTF then applies its constant 95%
+For each positive wave, one unique best normalized result receives the Crown.
+On an exact top-score tie, every tied team receives full relative-performance
+credit and no team receives the Crown. RSCTF then applies its constant 95%
 performance plus 5% Crown formula; the referee never sends points.
 
 Failed attempts remain challenge telemetry; they neither add evidence nor
@@ -132,7 +131,7 @@ python3 scripts/test-koth-observer.py
 ```
 
 The test verifies HMAC scope, an initial empty wave ledger, finalized objective
-budgets, the incumbent/absence Crown tie rule, raw-token absence, stable
+budgets, the unique-leader/no-Crown-on-tie rule, raw-token absence, stable
 objective identity, unknown-hash filtering, deduplication, persistent restart,
 round fencing, feed-gap failure, redirect refusal, and HTTPS-by-default URL
 checks.
