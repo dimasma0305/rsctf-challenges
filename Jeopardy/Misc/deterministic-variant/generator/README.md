@@ -33,6 +33,11 @@ It writes one compact JSON object to stdout:
 }
 ```
 
+The optional `artifactSha256` covers the UTF-8 compact JSON form of `manifest`
+with every object key sorted lexicographically; array order is preserved. In
+Python, use `json.dumps(..., ensure_ascii=False, separators=(",", ":"),
+sort_keys=True)`.
+
 Diagnostics go to stderr. Never write the seed, secrets, or extra text to
 stdout. `scripts/test-provenance.py` exercises the exact contract without
 requiring Docker.

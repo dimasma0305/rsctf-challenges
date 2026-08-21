@@ -55,7 +55,10 @@ def main() -> int:
     assert "seed" not in first_bytes.decode().lower()
 
     canonical = json.dumps(
-        first["manifest"], ensure_ascii=False, separators=(",", ":")
+        first["manifest"],
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
     ).encode()
     assert first["artifactSha256"] == hashlib.sha256(canonical).hexdigest()
     print("OK: deterministic variant generator output and artifact hash verified.")
