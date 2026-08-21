@@ -1,9 +1,11 @@
 # Deterministic variant generator
 
-rsctf starts this image twice with networking disabled, a read-only root
-filesystem, and bounded CPU, memory, process count, output size, and runtime.
-Both executions must produce byte-identical stdout before rsctf freezes the
-variant.
+Repository Bindings builds this directory automatically and runs the resulting
+image twice as an import-time contract check. During variant generation, rsctf
+runs it twice again for each target participation. Every run has networking
+disabled, a read-only root filesystem, and bounded CPU, memory, process count,
+output size, and runtime. Both executions must produce byte-identical stdout
+before rsctf accepts the build or freezes a variant.
 
 The image reads one URL-safe, unpadded base64 JSON object from
 `RSCTF_VARIANT_INPUT`:
