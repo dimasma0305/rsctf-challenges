@@ -65,7 +65,12 @@ def generate(value: dict[str, Any]) -> dict[str, Any]:
             "The receipt field is unused in this example.",
         ],
     }
-    canonical = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode()
+    canonical = json.dumps(
+        manifest,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
     return {
         "manifest": manifest,
         "artifactSha256": hashlib.sha256(canonical).hexdigest(),

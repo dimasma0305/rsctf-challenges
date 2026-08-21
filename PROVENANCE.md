@@ -32,6 +32,10 @@ read-only, resource-limited container. Only byte-identical output is frozen.
 The player receives generated `content` and `hints`; the generated `flag` stays
 server-side for grading.
 
+If the generator includes the optional `artifactSha256`, it hashes the UTF-8
+compact JSON form of `manifest` with object keys sorted lexicographically and
+array order preserved. rsctf independently normalizes and checks that value.
+
 Run the contract test locally:
 
 ```sh
