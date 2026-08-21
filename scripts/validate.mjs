@@ -65,6 +65,11 @@ const CHALLENGE_KEYS = new Set([
   'provide',
   'disableBloodBonus',
   'submissionLimit',
+  'variantMode',
+  'variantGeneratorImage',
+  'variantGeneratorDigest',
+  'solveReceiptMode',
+  'receiptVerifierIdentity',
   'container',
   'ad',
 ])
@@ -94,7 +99,7 @@ const TYPES = [
 const EXPECTED_TYPE_COUNTS = new Map(
   TYPES.map((type) => [
     type,
-    type === 'AttackDefense' || type === 'KingOfTheHill' ? 2 : 1,
+    type === 'StaticAttachment' || type === 'AttackDefense' || type === 'KingOfTheHill' ? 2 : 1,
   ])
 )
 
@@ -117,6 +122,9 @@ const CATEGORIES = new Set([
 ])
 
 const CONTAINER_TYPES = new Set(['StaticContainer', 'DynamicContainer', 'AttackDefense', 'KingOfTheHill'])
+const VARIANT_MODES = new Set(['Disabled', 'PerParticipation'])
+const RECEIPT_MODES = new Set(['Disabled', 'Optional', 'Required'])
+const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/
 
 function reportError(file, message) {
   errors.push(`${relative(ROOT, file) || '.'}: ${message}`)
@@ -738,6 +746,59 @@ function validateChallenge(file, model) {
     reportError(file, 'difficulty must be positive')
   }
 
+  const provenanceFields = [
+    'variantMode',
+    'variantGeneratorImage',
+    'variantGeneratorDigest',
+    'solveReceiptMode',
+    'receiptVerifierIdentity',
+  ]
+  const hasProvenance = provenanceFields.some((key) => Object.hasOwn(model, key))
+  if (model.variantMode !== undefined && !VARIANT_MODES.has(model.variantMode)) {
+    reportError(file, `unknown variantMode: ${model.variantMode}`)
+  }
+  if (model.solveReceiptMode !== undefined && !RECEIPT_MODES.has(model.solveReceiptMode)) {
+    reportError(file, `unknown solveReceiptMode: ${model.solveReceiptMode}`)
+  }
+  if (model.variantMode === 'PerParticipation') {
+    if (model.type !== 'StaticAttachment') {
+      reportError(file, 'this catalog uses PerParticipation only with StaticAttachment')
+    }
+    if (typeof model.variantGeneratorImage !== 'string' || /\s/.test(model.variantGeneratorImage)) {
+      reportError(file, 'PerParticipation requires one whitespace-free variantGeneratorImage')
+    }
+    if (
+      typeof model.variantGeneratorDigest !== 'string' ||
+      !SHA256_DIGEST.test(model.variantGeneratorDigest)
+    ) {
+      reportError(file, 'PerParticipation requires variantGeneratorDigest as sha256:<64 lowercase hex>')
+    }
+    if (
+      typeof model.variantGeneratorImage === 'string' &&
+      typeof model.variantGeneratorDigest === 'string' &&
+      !model.variantGeneratorImage.endsWith(`@${model.variantGeneratorDigest}`)
+    ) {
+      reportError(file, 'variantGeneratorImage must end with @variantGeneratorDigest')
+    }
+  } else if (model.variantGeneratorImage !== undefined || model.variantGeneratorDigest !== undefined) {
+    reportError(file, 'generator image fields require variantMode: PerParticipation')
+  }
+  const receiptMode = model.solveReceiptMode ?? 'Disabled'
+  if (receiptMode === 'Disabled') {
+    if (model.receiptVerifierIdentity !== undefined) {
+      reportError(file, 'receiptVerifierIdentity requires Optional or Required solveReceiptMode')
+    }
+  } else if (
+    typeof model.receiptVerifierIdentity !== 'string' ||
+    model.receiptVerifierIdentity.trim().length < 1 ||
+    model.receiptVerifierIdentity.trim().length > 128
+  ) {
+    reportError(file, 'enabled solve receipts require a 1..128 character receiptVerifierIdentity')
+  }
+  if (hasProvenance && (model.type === 'AttackDefense' || model.type === 'KingOfTheHill')) {
+    reportError(file, 'challenge provenance applies only to Jeopardy challenge types')
+  }
+
   if (model.provide !== undefined) checkSafeProvide(file, model.provide)
   if (model.type?.endsWith('Attachment') && model.provide === undefined) {
     reportError(file, 'attachment examples must name an explicit provide path')
@@ -819,7 +880,10 @@ function validateChallenge(file, model) {
     reportError(file, `${model.type} must not define an ad block`)
   }
 
-  if (model.type === 'StaticAttachment' || model.type === 'StaticContainer') {
+  if (
+    (model.type === 'StaticAttachment' || model.type === 'StaticContainer') &&
+    model.variantMode !== 'PerParticipation'
+  ) {
     if (!Array.isArray(model.flags) || model.flags.length === 0) {
       reportError(file, `${model.type} must include at least one static flag`)
     }
@@ -845,6 +909,16 @@ function validateChallenge(file, model) {
     notices.push(
       `${relative(ROOT, file)}: expected limitation — current rsctf imports this schema but does not assign per-team flag attachments`
     )
+  }
+  if (relative(ROOT, dirname(file)).split(sep).join('/') === 'Jeopardy/Misc/deterministic-variant') {
+    const generator = resolve(dirname(file), 'generator', 'generate.py')
+    const dockerfile = resolve(dirname(file), 'generator', 'Dockerfile')
+    if (!existsSync(generator) || !existsSync(dockerfile)) {
+      reportError(file, 'deterministic variant example must include generator/{generate.py,Dockerfile}')
+    }
+    if (model.variantMode !== 'PerParticipation' || model.solveReceiptMode !== 'Disabled') {
+      reportError(file, 'deterministic variant example must enable variants and leave receipts disabled')
+    }
   }
   return model.type
 }
@@ -908,7 +982,7 @@ function main() {
     return
   }
   console.log(`OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`)
-  console.log('OK: manifests use local builds, pinned checker wheels, and protocol-neutral libraries.')
+  console.log('OK: manifests use local builds, pinned checker wheels, protocol-neutral libraries, and one pinned provenance generator.')
 }
 
 main()

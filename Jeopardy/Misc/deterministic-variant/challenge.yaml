@@ -1,0 +1,28 @@
+# Each accepted participation receives immutable generated content and a flag.
+# The generator image is public, multi-architecture, and pinned by OCI digest.
+name: "Deterministic Variant: Team Sum"
+author: "rsctf documentation team"
+description: |
+  The question shown here is replaced by a deterministic team-specific sum
+  before the event starts. Follow the generated instructions and submit the
+  resulting flag.
+type: StaticAttachment
+category: Misc
+minScoreRate: 0.25
+difficulty: 5
+submissionLimit: 10
+disableBloodBonus: false
+
+# Repository Bindings persists these fields. After teams are accepted, trusted
+# pre-event automation calls POST /api/edit/games/{id}/variants/generate.
+variantMode: PerParticipation
+variantGeneratorImage: "docker.io/dimasmaualana/rsctf-provenance-generator@sha256:6efc8c4382c993cf0a5469d16cc3e152476440c476df76fbaaf99d02bd82dc79"
+variantGeneratorDigest: "sha256:6efc8c4382c993cf0a5469d16cc3e152476440c476df76fbaaf99d02bd82dc79"
+
+# Receipt issuance needs a separately deployed verifier. This runnable example
+# deliberately demonstrates variants only; see PROVENANCE.md for the opt-in.
+solveReceiptMode: Disabled
+
+# The shared file explains the provenance flow; generated content and hints are
+# supplied by the immutable manifest returned from generator/generate.py.
+provide: dist

@@ -56,6 +56,12 @@ jobs:
       - name: Exercise signed KotH observer
         run: python3 scripts/test-koth-observer.py
 
+      - name: Exercise deterministic provenance generator
+        run: python3 scripts/test-provenance.py
+
+      - name: Exercise provenance automation clients
+        run: node scripts/test-provenance-automation.mjs
+
   containers:
     name: Build ${{ matrix.name }}
     needs: manifests
@@ -77,6 +83,8 @@ jobs:
             context: Koth/Pwn/king-of-the-hill/src
           - name: api-observed-hill
             context: Koth/Web/api-observed-hill/src
+          - name: provenance-generator
+            context: Jeopardy/Misc/deterministic-variant/generator
     steps:
       - name: Check out repository
         uses: actions/checkout@v6

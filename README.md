@@ -2,7 +2,7 @@
 
 This repository is a complete, safe-by-default example for rsctf's **Admin →
 Repository Bindings** feature. Bind it and rsctf will find the root `.gzevent`,
-create one hidden game, and import the eight nested challenge manifests.
+create one hidden game, and import the nine nested challenge manifests.
 
 The example is intentionally small and readable. Container manifests omit
 `containerImage`, so Repository Bindings builds each adjacent `src/Dockerfile`
@@ -15,6 +15,7 @@ pulled from Docker Hub.
 | --- | --- | --- | --- |
 | `Jeopardy/Misc/static-handout` | `StaticAttachment` | One shared download and server-side static flag | Yes, after replacing the public demo flag |
 | `Jeopardy/Misc/dynamic-handout` | `DynamicAttachment` | The current YAML shape and a multi-file attachment | **No** — see the current limitation below |
+| `Jeopardy/Misc/deterministic-variant` | `StaticAttachment` + provenance | A trusted, digest-pinned generator derives a different challenge statement and flag for each participation | Demo only; configure the platform key and generate before the event |
 | `Jeopardy/Web/static-flag-service` | `StaticContainer` | One shared HTTP container with a static injected flag | Yes, after a runtime test and flag replacement |
 | `Jeopardy/Web/dynamic-flag-service` | `DynamicContainer` | One HTTP container per team using `RSCTF_FLAG` | Yes, after a runtime test |
 | `AD/Pwn/attack-defense-service` | `AttackDefense` | Platform-hosted raw TCP line service, rotating flag file, and pwntools checker | Demo only; validate the entire A&D network first |
@@ -26,7 +27,10 @@ Repository imports always create challenges with `isEnabled = false`. This
 event is also created with `hidden: true`, so importing it does not publish a
 live competition. Trusted repository imports do mark the challenge review state
 as active. During the scan, this example prepares four A&D/KotH checkers and
-builds the six container challenge images from their checked-in source. Each
+builds the six service images from their checked-in source. The provenance
+generator is a separate, pre-published image pinned by digest; an operator
+preloads that exact image on the trusted daemon, and rsctf runs it only when an
+administrator generates participation variants. Each
 checker pairs a protocol-neutral `lib.py` with registered checks in `run.py`;
 the two A&D checkers additionally install exact `pwntools==4.15.0` and
 `httpx==0.28.1` wheel requirements.
@@ -49,12 +53,13 @@ rsctf-challenges/
 │   ├── Pwn/king-of-the-hill/{challenge.yaml,checker/,src/}
 │   └── Web/api-observed-hill/{challenge.yaml,checker/,observer/,src/}
 ├── Jeopardy/
-│   ├── Misc/{static-handout,dynamic-handout}/
+│   ├── Misc/{static-handout,dynamic-handout,deterministic-variant}/
 │   └── Web/{static-flag-service,dynamic-flag-service}/
 ├── CHECKERS.md
 ├── CONFIGURATION.md
 ├── LICENSE.txt
-├── scripts/{validate.mjs,test-checkers.py,test-koth-observer.py}
+├── PROVENANCE.md
+├── scripts/{validate.mjs,test-provenance.py,generate-variants.mjs,issue-solve-receipt.mjs,...}
 └── README.md
 ```
 
@@ -75,9 +80,23 @@ node scripts/validate.mjs
 It requires no `npm install`. The script fails on malformed/unknown manifest
 keys, invalid mode/category directory placement, missing challenge types, unsafe
 attachment paths, an unexpected `containerImage`, missing `src/Dockerfile`
-build contexts, invalid ports/resources, or an unsupported checker layout. It
+build contexts, invalid ports/resources, an unsupported checker layout, or a
+mutable/mismatched provenance generator reference. It
 reports the current `DynamicAttachment` behavior as an expected limitation
 rather than pretending that the example is playable.
+
+Exercise the deterministic generator contract locally:
+
+```sh
+python3 scripts/test-provenance.py
+node scripts/test-provenance-automation.mjs
+```
+
+The first test runs the generator twice with the same input, verifies
+byte-identical output, then changes the seed and verifies that the derived
+instance changes. The second exercises both API clients against a local mock
+control surface and checks their routes, credentials, request bodies, and
+responses.
 
 Run the checker smoke tests separately after installing the A&D checkers'
 pinned wheel dependencies as described in [`CHECKERS.md`](CHECKERS.md):
@@ -109,7 +128,7 @@ feed-gap failure, and deduplication without requiring a live RSCTF deployment.
 4. For a private fork, use a fine-grained GitHub token with read-only
    repository contents access unless you intentionally need push-back.
 5. Run **Scan now** and inspect the scan result. It should report one event and
-   eight imported challenges.
+   nine imported challenges.
 6. Open the newly created hidden game and verify that all six container builds
    completed successfully. Set its real schedule, review every flag, build log,
    checker, and runtime, then enable only the challenges you tested.
@@ -168,6 +187,29 @@ in a registry accessible to every runtime node.
 
 The static and dynamic services read the injected `RSCTF_FLAG` environment
 variable. That is the current rsctf contract for normal container challenges.
+
+## Challenge provenance automation
+
+[`Jeopardy/Misc/deterministic-variant/challenge.yaml`](Jeopardy/Misc/deterministic-variant/challenge.yaml)
+shows the repository-facing policy. It tells rsctf which immutable generator
+image is trusted and that variants are scoped per participation. The adjacent
+`generator/` is authoring source; the platform executes the published digest,
+not arbitrary player code.
+
+After import, configure `RSCTF_EVENT_VPN_CREDENTIAL_KEY`, accept the teams, and
+run the pre-event generation endpoint with
+[`scripts/generate-variants.mjs`](scripts/generate-variants.mjs). Players still
+submit only a flag. If a challenge needs an external verifier, set
+`solveReceiptMode` to `Optional` or `Required`, configure its identity, and
+have that verifier call the
+control-only receipt endpoint through
+[`scripts/issue-solve-receipt.mjs`](scripts/issue-solve-receipt.mjs); players
+then submit the signed proof returned by rsctf. They never upload an exploit or
+a solver to the platform.
+
+See [`PROVENANCE.md`](PROVENANCE.md) for the exact generator input/output,
+publication command, environment variables, API calls, trust boundaries, and
+safe retry behavior.
 
 ## A&D checker contract
 

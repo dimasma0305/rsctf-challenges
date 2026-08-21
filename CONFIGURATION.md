@@ -78,12 +78,29 @@ See [`.gzevent`](.gzevent) for a safe staging configuration.
 | `provide` | `dist/` convention | Attachment file or directory relative to the manifest |
 | `disableBloodBonus` | `false` | Disable first-solve bonuses for this challenge |
 | `ignore` | `false` | `true` prevents creation and is rejected by this catalog validator |
+| `variantMode` | `Disabled` | `PerParticipation` asks rsctf to derive one deterministic variant per accepted participation before the event |
+| `variantGeneratorImage` | absent | Immutable OCI reference ending in `@sha256:<64 lowercase hex>`; required with `PerParticipation` |
+| `variantGeneratorDigest` | absent | The same `sha256:<64 lowercase hex>` digest embedded in `variantGeneratorImage` |
+| `solveReceiptMode` | `Disabled` | `Optional` accepts a trusted proof when supplied; `Required` rejects solves without one |
+| `receiptVerifierIdentity` | absent | Stable verifier name recorded in solve receipts; required with `Optional` or `Required` |
 
 Do not add `value`: the repository importer always creates a 1000-point Standard
 challenge and ignores unknown keys. Only `minScoreRate` and `difficulty` control
 the imported jeopardy score curve. Other misleading, ignored keys include
 `scoreCurve`, `originalScore`, `deadline`, `networkMode`, `isEnabled`, and
 `adScoringWeight`.
+
+When every provenance key is omitted, Repository Bindings preserves policy set
+in Admin. When at least one is present, named values are applied and omitted
+values retain their current setting; on a new challenge, those current settings
+are the disabled/empty defaults. Use an explicit empty string to clear either
+image field or verifier identity. Provenance is currently Jeopardy-only and
+becomes immutable when the event starts. A variant generator may derive only
+the participation's flag, content, and hints; it does not create or replace
+attachment files. Configure `RSCTF_EVENT_VPN_CREDENTIAL_KEY` before generation.
+Any enabled receipt mode additionally needs
+`RSCTF_SOLVE_RECEIPT_ISSUER_TOKEN` on the control surface. See
+[`PROVENANCE.md`](PROVENANCE.md) for the runtime contract and automation calls.
 
 ## Container block
 
@@ -189,6 +206,7 @@ dependency and all base images for a completely Docker-Hub-free deployment.
 | Type/mode | Example |
 | --- | --- |
 | `StaticAttachment` | [`Jeopardy/Misc/static-handout`](Jeopardy/Misc/static-handout/) |
+| `StaticAttachment` with per-participation provenance | [`Jeopardy/Misc/deterministic-variant`](Jeopardy/Misc/deterministic-variant/) |
 | `DynamicAttachment` | [`Jeopardy/Misc/dynamic-handout`](Jeopardy/Misc/dynamic-handout/) — schema only; current per-team assignment is incomplete |
 | shared `StaticContainer` | [`Jeopardy/Web/static-flag-service`](Jeopardy/Web/static-flag-service/) |
 | per-team `DynamicContainer` | [`Jeopardy/Web/dynamic-flag-service`](Jeopardy/Web/dynamic-flag-service/) |
@@ -197,4 +215,6 @@ dependency and all base images for a completely Docker-Hub-free deployment.
 | marker `KingOfTheHill` | [`Koth/Pwn/king-of-the-hill`](Koth/Pwn/king-of-the-hill/) |
 | signed-API `KingOfTheHill` | [`Koth/Web/api-observed-hill`](Koth/Web/api-observed-hill/) |
 
-For custom functional checks, continue with [`CHECKERS.md`](CHECKERS.md).
+For deterministic variants and trusted solve receipts, continue with
+[`PROVENANCE.md`](PROVENANCE.md). For custom functional checks, continue with
+[`CHECKERS.md`](CHECKERS.md).
