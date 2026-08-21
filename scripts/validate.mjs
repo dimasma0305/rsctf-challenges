@@ -761,24 +761,34 @@ function validateChallenge(file, model) {
     reportError(file, `unknown solveReceiptMode: ${model.solveReceiptMode}`)
   }
   if (model.variantMode === 'PerParticipation') {
+    const generatorDockerfile = resolve(dirname(file), 'generator', 'Dockerfile')
+    const hasGeneratorImage = Object.hasOwn(model, 'variantGeneratorImage')
+    const hasGeneratorDigest = Object.hasOwn(model, 'variantGeneratorDigest')
     if (model.type !== 'StaticAttachment') {
       reportError(file, 'this catalog uses PerParticipation only with StaticAttachment')
     }
-    if (typeof model.variantGeneratorImage !== 'string' || /\s/.test(model.variantGeneratorImage)) {
-      reportError(file, 'PerParticipation requires one whitespace-free variantGeneratorImage')
-    }
-    if (
-      typeof model.variantGeneratorDigest !== 'string' ||
-      !SHA256_DIGEST.test(model.variantGeneratorDigest)
-    ) {
-      reportError(file, 'PerParticipation requires variantGeneratorDigest as sha256:<64 lowercase hex>')
-    }
-    if (
-      typeof model.variantGeneratorImage === 'string' &&
-      typeof model.variantGeneratorDigest === 'string' &&
-      !model.variantGeneratorImage.endsWith(`@${model.variantGeneratorDigest}`)
-    ) {
-      reportError(file, 'variantGeneratorImage must end with @variantGeneratorDigest')
+    if (hasGeneratorImage || hasGeneratorDigest) {
+      if (!hasGeneratorImage || !hasGeneratorDigest) {
+        reportError(file, 'variantGeneratorImage and variantGeneratorDigest must be supplied together')
+      }
+      if (typeof model.variantGeneratorImage !== 'string' || /\s/.test(model.variantGeneratorImage)) {
+        reportError(file, 'variantGeneratorImage must be one whitespace-free repository reference')
+      }
+      if (
+        typeof model.variantGeneratorDigest !== 'string' ||
+        !SHA256_DIGEST.test(model.variantGeneratorDigest)
+      ) {
+        reportError(file, 'variantGeneratorDigest must be sha256:<64 lowercase hex>')
+      }
+      if (
+        typeof model.variantGeneratorImage === 'string' &&
+        typeof model.variantGeneratorDigest === 'string' &&
+        !model.variantGeneratorImage.endsWith(`@${model.variantGeneratorDigest}`)
+      ) {
+        reportError(file, 'variantGeneratorImage must end with @variantGeneratorDigest')
+      }
+    } else if (!existsSync(generatorDockerfile)) {
+      reportError(file, 'PerParticipation without image fields requires generator/Dockerfile')
     }
   } else if (model.variantGeneratorImage !== undefined || model.variantGeneratorDigest !== undefined) {
     reportError(file, 'generator image fields require variantMode: PerParticipation')
@@ -982,7 +992,7 @@ function main() {
     return
   }
   console.log(`OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`)
-  console.log('OK: manifests use local builds, pinned checker wheels, protocol-neutral libraries, and one pinned provenance generator.')
+  console.log('OK: manifests use local builds, pinned checker wheels, protocol-neutral libraries, and one auto-built provenance generator.')
 }
 
 main()

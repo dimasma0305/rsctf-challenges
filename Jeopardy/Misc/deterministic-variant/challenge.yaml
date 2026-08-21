@@ -1,5 +1,5 @@
 # Each accepted participation receives immutable generated content and a flag.
-# The generator image is public, multi-architecture, and pinned by OCI digest.
+# Repository Bindings auto-builds the adjacent generator/Dockerfile.
 name: "Deterministic Variant: Team Sum"
 author: "rsctf documentation team"
 description: |
@@ -13,11 +13,10 @@ difficulty: 5
 submissionLimit: 10
 disableBloodBonus: false
 
-# Repository Bindings persists these fields. After teams are accepted, trusted
-# pre-event automation calls POST /api/edit/games/{id}/variants/generate.
+# The scan builds and contract-tests generator/Dockerfile, then stores its
+# resolved immutable image identity internally. After teams are accepted,
+# trusted automation calls POST /api/edit/games/{id}/variants/generate.
 variantMode: PerParticipation
-variantGeneratorImage: "docker.io/dimasmaualana/rsctf-provenance-generator@sha256:6efc8c4382c993cf0a5469d16cc3e152476440c476df76fbaaf99d02bd82dc79"
-variantGeneratorDigest: "sha256:6efc8c4382c993cf0a5469d16cc3e152476440c476df76fbaaf99d02bd82dc79"
 
 # Receipt issuance needs a separately deployed verifier. This runnable example
 # deliberately demonstrates variants only; see PROVENANCE.md for the opt-in.

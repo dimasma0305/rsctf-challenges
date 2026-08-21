@@ -15,7 +15,7 @@ pulled from Docker Hub.
 | --- | --- | --- | --- |
 | `Jeopardy/Misc/static-handout` | `StaticAttachment` | One shared download and server-side static flag | Yes, after replacing the public demo flag |
 | `Jeopardy/Misc/dynamic-handout` | `DynamicAttachment` | The current YAML shape and a multi-file attachment | **No** — see the current limitation below |
-| `Jeopardy/Misc/deterministic-variant` | `StaticAttachment` + provenance | A trusted, digest-pinned generator derives a different challenge statement and flag for each participation | Demo only; configure the platform key and generate before the event |
+| `Jeopardy/Misc/deterministic-variant` | `StaticAttachment` + provenance | An auto-built deterministic generator derives a different challenge statement and flag for each participation | Demo only; configure the platform key and generate before the event |
 | `Jeopardy/Web/static-flag-service` | `StaticContainer` | One shared HTTP container with a static injected flag | Yes, after a runtime test and flag replacement |
 | `Jeopardy/Web/dynamic-flag-service` | `DynamicContainer` | One HTTP container per team using `RSCTF_FLAG` | Yes, after a runtime test |
 | `AD/Pwn/attack-defense-service` | `AttackDefense` | Platform-hosted raw TCP line service, rotating flag file, and pwntools checker | Demo only; validate the entire A&D network first |
@@ -27,9 +27,9 @@ Repository imports always create challenges with `isEnabled = false`. This
 event is also created with `hidden: true`, so importing it does not publish a
 live competition. Trusted repository imports do mark the challenge review state
 as active. During the scan, this example prepares four A&D/KotH checkers and
-builds the six service images from their checked-in source. The provenance
-generator is a separate, pre-published image pinned by digest; an operator
-preloads that exact image on the trusted daemon, and rsctf runs it only when an
+builds the six service images from their checked-in source. It also builds and
+contract-tests the provenance `generator/Dockerfile`, storing the resolved
+immutable image ID internally. rsctf runs that generator again only when an
 administrator generates participation variants. Each
 checker pairs a protocol-neutral `lib.py` with registered checks in `run.py`;
 the two A&D checkers additionally install exact `pwntools==4.15.0` and
@@ -81,7 +81,8 @@ It requires no `npm install`. The script fails on malformed/unknown manifest
 keys, invalid mode/category directory placement, missing challenge types, unsafe
 attachment paths, an unexpected `containerImage`, missing `src/Dockerfile`
 build contexts, invalid ports/resources, an unsupported checker layout, or a
-mutable/mismatched provenance generator reference. It
+missing `generator/Dockerfile` or mutable/mismatched fallback generator
+reference. It
 reports the current `DynamicAttachment` behavior as an expected limitation
 rather than pretending that the example is playable.
 
@@ -192,9 +193,9 @@ variable. That is the current rsctf contract for normal container challenges.
 
 [`Jeopardy/Misc/deterministic-variant/challenge.yaml`](Jeopardy/Misc/deterministic-variant/challenge.yaml)
 shows the repository-facing policy. It tells rsctf which immutable generator
-image is trusted and that variants are scoped per participation. The adjacent
-`generator/` is authoring source; the platform executes the published digest,
-not arbitrary player code.
+mode is requested and that variants are scoped per participation. Repository
+Bindings automatically archives, builds, and deterministic-replay checks the
+adjacent `generator/Dockerfile`, then stores its immutable identity internally.
 
 After import, configure `RSCTF_EVENT_VPN_CREDENTIAL_KEY`, accept the teams, and
 run the pre-event generation endpoint with
@@ -208,8 +209,8 @@ then submit the signed proof returned by rsctf. They never upload an exploit or
 a solver to the platform.
 
 See [`PROVENANCE.md`](PROVENANCE.md) for the exact generator input/output,
-publication command, environment variables, API calls, trust boundaries, and
-safe retry behavior.
+automatic-build behavior, registry fallback, environment variables, API calls,
+trust boundaries, and safe retry behavior.
 
 ## A&D checker contract
 

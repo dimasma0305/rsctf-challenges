@@ -12,15 +12,19 @@ The challenge manifest owns these fields:
 
 ```yaml
 variantMode: PerParticipation
-variantGeneratorImage: "docker.io/dimasmaualana/rsctf-provenance-generator@sha256:6efc8c4382c993cf0a5469d16cc3e152476440c476df76fbaaf99d02bd82dc79"
-variantGeneratorDigest: "sha256:6efc8c4382c993cf0a5469d16cc3e152476440c476df76fbaaf99d02bd82dc79"
 solveReceiptMode: Disabled
 ```
 
-The image and digest must be changed together. A mutable tag such as `:main`
-is invalid. Repository rescans may change this policy only before the event
-starts. Normal manifests that omit every provenance key preserve any policy an
-organizer configured in Admin.
+Because the package contains `generator/Dockerfile`, a trusted Repository
+Bindings scan automatically archives that source, builds it, and exercises its
+contract twice with identical input. Only deterministic valid output completes
+the build. rsctf stores the daemon-local immutable image ID and build log in the
+database; neither is authored or written back into `challenge.yaml`.
+
+Changing any file under `generator/` queues a new build. An unchanged rescan
+reuses the existing immutable identity. A missing Dockerfile, failed build,
+invalid output, nondeterminism, or an event that has already started leaves the
+new generator unavailable instead of falling back to old or mutable code.
 
 The checked-in generator source reads `RSCTF_VARIANT_INPUT` and emits one JSON
 manifest. rsctf runs it twice with the same input in a network-disabled,
@@ -36,10 +40,23 @@ docker build -t rsctf-provenance-generator:test \
   Jeopardy/Misc/deterministic-variant/generator
 ```
 
-## Publish a changed generator
+## Deployment topology and registry fallback
 
-The example manifest references a public multi-architecture image built from
-the checked-in source. For your own generator, publish a reviewed image first:
+Automatic source builds use the trusted Docker daemon. They work in the
+all-in-one deployment and in split-role Docker deployments only when every
+builder and generator request shares that daemon and
+`RSCTF_SHARED_DOCKER_DAEMON=true` acknowledges the topology.
+
+Kubernetes and independent node-local Docker deployments must publish the
+reviewed generator to a registry instead. In that case, explicitly add both
+fields to the manifest:
+
+```yaml
+variantGeneratorImage: "REGISTRY/ORGANIZATION/GENERATOR@sha256:DIGEST"
+variantGeneratorDigest: "sha256:DIGEST"
+```
+
+Build and publish it with, for example:
 
 ```sh
 docker buildx build \
@@ -49,10 +66,10 @@ docker buildx build \
   Jeopardy/Misc/deterministic-variant/generator
 ```
 
-Copy the resulting manifest-list digest into both YAML fields, commit that
-change, and let Repository Bindings rescan it. Do not have CI rewrite a live
-event's digest automatically: publishing and selecting the reviewed immutable
-image are deliberately separate approvals.
+The two explicit fields must be changed together; mutable tags are rejected.
+The trusted generator host must contain the exact referenced image before
+variant generation. Repository rescans may change either source-built or
+registry-pinned provenance only before the event starts.
 
 The trusted Docker daemon used by rsctf's control role must already contain the
 exact image because the generator checks the local immutable identity and does

@@ -79,8 +79,8 @@ See [`.gzevent`](.gzevent) for a safe staging configuration.
 | `disableBloodBonus` | `false` | Disable first-solve bonuses for this challenge |
 | `ignore` | `false` | `true` prevents creation and is rejected by this catalog validator |
 | `variantMode` | `Disabled` | `PerParticipation` asks rsctf to derive one deterministic variant per accepted participation before the event |
-| `variantGeneratorImage` | absent | Immutable OCI reference ending in `@sha256:<64 lowercase hex>`; required with `PerParticipation` |
-| `variantGeneratorDigest` | absent | The same `sha256:<64 lowercase hex>` digest embedded in `variantGeneratorImage` |
+| `variantGeneratorImage` | absent | Optional registry fallback ending in `@sha256:<64 lowercase hex>`; omit when `generator/Dockerfile` is present |
+| `variantGeneratorDigest` | absent | Matching digest for the registry fallback; supply both image fields or neither |
 | `solveReceiptMode` | `Disabled` | `Optional` accepts a trusted proof when supplied; `Required` rejects solves without one |
 | `receiptVerifierIdentity` | absent | Stable verifier name recorded in solve receipts; required with `Optional` or `Required` |
 
@@ -90,14 +90,16 @@ the imported jeopardy score curve. Other misleading, ignored keys include
 `scoreCurve`, `originalScore`, `deadline`, `networkMode`, `isEnabled`, and
 `adScoringWeight`.
 
-When every provenance key is omitted, Repository Bindings preserves policy set
-in Admin. When at least one is present, named values are applied and omitted
-values retain their current setting; on a new challenge, those current settings
-are the disabled/empty defaults. Use an explicit empty string to clear either
-image field or verifier identity. Provenance is currently Jeopardy-only and
-becomes immutable when the event starts. A variant generator may derive only
-the participation's flag, content, and hints; it does not create or replace
-attachment files. Configure `RSCTF_EVENT_VPN_CREDENTIAL_KEY` before generation.
+With `variantMode: PerParticipation`, omit both image fields and include a
+regular `generator/Dockerfile`; a trusted scan builds and checks it
+automatically. Supplying exactly one image field is invalid. Explicit matching
+image and digest fields remain the fallback for deployments that cannot share
+a trusted Docker daemon. When every provenance key and the generator directory
+are omitted, Repository Bindings preserves policy set in Admin. Provenance is
+currently Jeopardy-only and becomes immutable when the event starts. A variant
+generator may derive only the participation's flag, content, and hints; it does
+not create or replace attachment files. Configure
+`RSCTF_EVENT_VPN_CREDENTIAL_KEY` before generation.
 Any enabled receipt mode additionally needs
 `RSCTF_SOLVE_RECEIPT_ISSUER_TOKEN` on the control surface. See
 [`PROVENANCE.md`](PROVENANCE.md) for the runtime contract and automation calls.
