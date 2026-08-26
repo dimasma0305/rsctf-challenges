@@ -13,7 +13,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GENERATOR = ROOT / "Jeopardy/Misc/deterministic-variant/generator/generate.py"
+GENERATOR = ROOT / "challenges/Jeopardy/Misc/deterministic-variant/generator/generate.py"
 
 
 def encoded_request(seed: bytes) -> str:

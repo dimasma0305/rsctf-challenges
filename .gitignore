@@ -1,2 +1,7 @@
 __pycache__/
 *.py[cod]
+.checker-venv/
+playtest/
+.env
+.env.*
+!.env.example

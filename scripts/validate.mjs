@@ -14,9 +14,30 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const CHALLENGES_ROOT = resolve(ROOT, 'challenges')
 const errors = []
 const notices = []
 const checkerLibraries = []
+
+const REQUIRED_REPOSITORY_FILES = [
+  'README.md',
+  'AGENTS.md',
+  'Makefile',
+  'docs/README.md',
+  'docs/getting-started.md',
+  'docs/configuration.md',
+  'docs/checkers.md',
+  'docs/playtesting.md',
+  'docs/importing.md',
+  'docs/release-checklist.md',
+  'docs/provenance.md',
+  'docs/koth-referee.md',
+  '.agents/skills/rsctf-challenge-authoring/SKILL.md',
+  'scripts/container-images.py',
+  'scripts/test-catalog-extension.mjs',
+  'scripts/test-container-discovery.py',
+  'scripts/test-container-images.py',
+]
 
 const EVENT_KEYS = new Set([
   'title',
@@ -96,14 +117,21 @@ const TYPES = [
   'KingOfTheHill',
 ]
 
-const EXPECTED_TYPE_COUNTS = new Map(
+const JEOPARDY_TYPES = new Set([
+  'StaticAttachment',
+  'DynamicAttachment',
+  'StaticContainer',
+  'DynamicContainer',
+])
+
+const MINIMUM_TYPE_COUNTS = new Map(
   TYPES.map((type) => [
     type,
     type === 'StaticAttachment' || type === 'AttackDefense' || type === 'KingOfTheHill' ? 2 : 1,
   ])
 )
 
-const EXPECTED_CHALLENGE_COUNT = [...EXPECTED_TYPE_COUNTS.values()].reduce((total, count) => total + count, 0)
+const MINIMUM_CHALLENGE_COUNT = [...MINIMUM_TYPE_COUNTS.values()].reduce((total, count) => total + count, 0)
 
 const CATEGORIES = new Set([
   'Misc',
@@ -130,6 +158,33 @@ function reportError(file, message) {
   errors.push(`${relative(ROOT, file) || '.'}: ${message}`)
 }
 
+function checkMarkdownLinks(files) {
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8')
+    for (const match of source.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)) {
+      const rawTarget = match[1].trim().replace(/^<|>$/g, '')
+      if (
+        rawTarget === '' ||
+        rawTarget.startsWith('#') ||
+        /^[a-z][a-z0-9+.-]*:/i.test(rawTarget)
+      ) {
+        continue
+      }
+      const pathTarget = rawTarget.split('#', 1)[0]
+      let decoded
+      try {
+        decoded = decodeURIComponent(pathTarget)
+      } catch {
+        reportError(file, `Markdown link has invalid percent encoding: ${rawTarget}`)
+        continue
+      }
+      if (!existsSync(resolve(dirname(file), decoded))) {
+        reportError(file, `Markdown link target does not exist: ${rawTarget}`)
+      }
+    }
+  }
+}
+
 function walk(root) {
   const files = []
   const stack = [root]
@@ -137,7 +192,10 @@ function walk(root) {
     const current = stack.pop()
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const target = resolve(current, entry.name)
-      if (entry.isDirectory() && (entry.name === '.git' || entry.name === '__pycache__')) {
+      if (
+        entry.isDirectory() &&
+        ['.git', '.checker-venv', '__pycache__', 'node_modules', 'playtest'].includes(entry.name)
+      ) {
         continue
       }
       if (entry.isSymbolicLink()) {
@@ -366,15 +424,16 @@ function checkChallengeLayout(file, model) {
   const parts = relative(ROOT, file).split(sep)
   const expectedMode = model.type === 'AttackDefense' ? 'AD' : model.type === 'KingOfTheHill' ? 'Koth' : 'Jeopardy'
   if (
-    parts.length !== 4 ||
-    parts[0] !== expectedMode ||
-    parts[1] !== model.category ||
-    parts[2].trim() === '' ||
-    !['challenge.yaml', 'challenge.yml'].includes(parts[3])
+    parts.length !== 5 ||
+    parts[0] !== 'challenges' ||
+    parts[1] !== expectedMode ||
+    parts[2] !== model.category ||
+    parts[3].trim() === '' ||
+    !['challenge.yaml', 'challenge.yml'].includes(parts[4])
   ) {
     reportError(
       file,
-      `must use ${expectedMode}/<category>/<challenge>/challenge.yaml and match category ${model.category}`
+      `must use challenges/${expectedMode}/<category>/<challenge>/challenge.yaml and match category ${model.category}`
     )
   }
 }
@@ -477,10 +536,6 @@ function checkChecker(file, model) {
     reportError(file, 'checker must provide checker/lib.py beside run.py')
     return
   }
-  const readme = resolve(checkerRoot, 'README.md')
-  if (!existsSync(readme) || readFileSync(readme, 'utf8').trim() === '') {
-    reportError(file, 'checker must include a non-empty checker/README.md')
-  }
   const source = readFileSync(entry, 'utf8')
   const librarySource = readFileSync(library, 'utf8')
   const checks = registeredChecks(source)
@@ -574,7 +629,7 @@ function checkChecker(file, model) {
       reportError(file, 'KingOfTheHill run.py must not use RSCTF_FLAG')
     }
   }
-  if (packagePath === 'AD/Pwn/attack-defense-service') {
+  if (packagePath === 'challenges/AD/Pwn/attack-defense-service') {
     if (!existsSync(requirements) || readFileSync(requirements, 'utf8').trim() !== 'pwntools==4.15.0') {
       reportError(file, 'raw TCP checker must pin pwntools==4.15.0 in requirements.txt')
     }
@@ -613,7 +668,7 @@ function checkChecker(file, model) {
       }
     }
   }
-  if (packagePath === 'AD/Web/self-hosted-service') {
+  if (packagePath === 'challenges/AD/Web/self-hosted-service') {
     if (!existsSync(requirements) || readFileSync(requirements, 'utf8').trim() !== 'httpx==0.28.1') {
       reportError(file, 'self-hosted HTTP checker must pin httpx==0.28.1')
     }
@@ -643,8 +698,8 @@ function checkChecker(file, model) {
     }
   }
   if (
-    packagePath === 'Koth/Pwn/king-of-the-hill' ||
-    packagePath === 'Koth/Web/api-observed-hill'
+    packagePath === 'challenges/Koth/Pwn/king-of-the-hill' ||
+    packagePath === 'challenges/Koth/Web/api-observed-hill'
   ) {
     if (!source.includes('HTTPConnection') || source.includes('from pwn import')) {
       reportError(file, 'KotH checker must remain an HTTP standard-library client')
@@ -653,11 +708,10 @@ function checkChecker(file, model) {
       reportError(file, 'KotH checker must remain dependency-free')
     }
   }
-  if (packagePath === 'Koth/Web/api-observed-hill') {
+  if (packagePath === 'challenges/Koth/Web/api-observed-hill') {
     const observer = resolve(packageRoot, 'observer', 'observer.py')
-    const observerReadme = resolve(packageRoot, 'observer', 'README.md')
-    if (!existsSync(observer) || !existsSync(observerReadme)) {
-      reportError(file, 'Leaderboard KotH example must include observer/{observer.py,README.md}')
+    if (!existsSync(observer)) {
+      reportError(file, 'Leaderboard KotH example must include observer/observer.py')
     } else {
       const observerSource = readFileSync(observer, 'utf8')
       for (const marker of [
@@ -744,6 +798,19 @@ function validateChallenge(file, model) {
   }
   if (model.difficulty !== undefined && (typeof model.difficulty !== 'number' || model.difficulty <= 0)) {
     reportError(file, 'difficulty must be positive')
+  }
+  if (
+    model.submissionLimit !== undefined &&
+    (!Number.isInteger(model.submissionLimit) || model.submissionLimit < 0)
+  ) {
+    reportError(file, 'submissionLimit must be a non-negative integer')
+  }
+  if (JEOPARDY_TYPES.has(model.type)) {
+    for (const key of ['minScoreRate', 'difficulty', 'submissionLimit']) {
+      if (Object.hasOwn(model, key)) {
+        reportError(file, `${key} must be omitted so this example inherits the rsctf default`)
+      }
+    }
   }
 
   const provenanceFields = [
@@ -837,6 +904,9 @@ function validateChallenge(file, model) {
     if (!existsSync(dockerfile) || !existsSync(app)) {
       reportError(file, 'auto-built sample image must provide src/Dockerfile and src/app.py')
     }
+    if (existsSync(dockerfile) && !/^HEALTHCHECK\s/m.test(readFileSync(dockerfile, 'utf8'))) {
+      reportError(file, 'runnable sample image must define a Docker HEALTHCHECK')
+    }
     if (
       container.enableTrafficCapture !== undefined &&
       (model.type !== 'AttackDefense' || model.ad?.selfHosted === true)
@@ -847,14 +917,14 @@ function validateChallenge(file, model) {
       reportError(file, 'container.enableSharedContainer applies only to StaticContainer')
     }
     if (
-      packagePath === 'Koth/Pwn/king-of-the-hill' &&
+      packagePath === 'challenges/Koth/Pwn/king-of-the-hill' &&
       existsSync(dockerfile) &&
       !readFileSync(dockerfile, 'utf8').includes('chmod 01777 /koth')
     ) {
       reportError(file, 'marker KotH Dockerfile must make /koth writable for arbitrary non-root UIDs')
     }
     if (
-      packagePath === 'Koth/Web/api-observed-hill' &&
+      packagePath === 'challenges/Koth/Web/api-observed-hill' &&
       existsSync(dockerfile) &&
       readFileSync(dockerfile, 'utf8').includes('/koth')
     ) {
@@ -920,7 +990,10 @@ function validateChallenge(file, model) {
       `${relative(ROOT, file)}: expected limitation — current rsctf imports this schema but does not assign per-team flag attachments`
     )
   }
-  if (relative(ROOT, dirname(file)).split(sep).join('/') === 'Jeopardy/Misc/deterministic-variant') {
+  if (
+    relative(ROOT, dirname(file)).split(sep).join('/') ===
+    'challenges/Jeopardy/Misc/deterministic-variant'
+  ) {
     const generator = resolve(dirname(file), 'generator', 'generate.py')
     const dockerfile = resolve(dirname(file), 'generator', 'Dockerfile')
     if (!existsSync(generator) || !existsSync(dockerfile)) {
@@ -934,10 +1007,23 @@ function validateChallenge(file, model) {
 }
 
 function main() {
+  for (const required of REQUIRED_REPOSITORY_FILES) {
+    const file = resolve(ROOT, required)
+    if (!existsSync(file) || readFileSync(file, 'utf8').trim() === '') {
+      errors.push(`${required}: required repository guide or entry point is missing or empty`)
+    }
+  }
+  if (!existsSync(CHALLENGES_ROOT)) {
+    errors.push('challenges/: required challenge package root is missing')
+  }
+
   const allFiles = walk(ROOT)
+  checkMarkdownLinks(allFiles.filter((file) => file.endsWith('.md')))
   const events = allFiles.filter((file) => file.endsWith(`${sep}.gzevent`))
   if (events.length !== 1) {
     errors.push(`expected exactly one .gzevent below ${ROOT}, found ${events.length}`)
+  } else if (events[0] !== resolve(ROOT, '.gzevent')) {
+    reportError(events[0], 'the single event manifest must remain at repository root')
   }
 
   let challengeFiles = []
@@ -948,8 +1034,8 @@ function main() {
       (file) => file.endsWith(`${sep}challenge.yaml`) || file.endsWith(`${sep}challenge.yml`)
     )
   }
-  if (challengeFiles.length !== EXPECTED_CHALLENGE_COUNT) {
-    errors.push(`expected exactly ${EXPECTED_CHALLENGE_COUNT} challenge manifests, found ${challengeFiles.length}`)
+  if (challengeFiles.length < MINIMUM_CHALLENGE_COUNT) {
+    errors.push(`expected at least ${MINIMUM_CHALLENGE_COUNT} challenge manifests, found ${challengeFiles.length}`)
   }
 
   const foundTypes = []
@@ -968,16 +1054,16 @@ function main() {
     }
   }
 
-  for (const [type, expectedCount] of EXPECTED_TYPE_COUNTS) {
+  for (const [type, minimumCount] of MINIMUM_TYPE_COUNTS) {
     const count = foundTypes.filter((candidate) => candidate === type).length
-    if (count !== expectedCount) {
-      errors.push(`expected exactly ${expectedCount} ${type} manifest(s), found ${count}`)
+    if (count < minimumCount) {
+      errors.push(`expected at least ${minimumCount} ${type} manifest(s), found ${count}`)
     }
   }
   for (const selfHosted of [false, true]) {
     const count = attackDefenseHostingModes.filter((candidate) => candidate === selfHosted).length
-    if (count !== 1) {
-      errors.push(`expected exactly one AttackDefense manifest with ad.selfHosted: ${selfHosted}, found ${count}`)
+    if (count < 1) {
+      errors.push(`expected at least one AttackDefense manifest with ad.selfHosted: ${selfHosted}, found ${count}`)
     }
   }
   if (new Set(checkerLibraries.map(({ source }) => source)).size !== 1) {
@@ -992,7 +1078,8 @@ function main() {
     return
   }
   console.log(`OK: validated one event, all ${TYPES.length} challenge types, and both AttackDefense hosting modes.`)
-  console.log('OK: manifests use local builds, pinned checker wheels, protocol-neutral libraries, and one auto-built provenance generator.')
+  console.log('OK: manifests use local builds, pinned checker wheels, protocol-neutral libraries, and auto-built provenance generators.')
+  console.log('OK: repository entry points, centralized guides, and local Markdown links are valid.')
 }
 
 main()

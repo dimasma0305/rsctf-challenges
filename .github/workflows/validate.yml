@@ -17,7 +17,10 @@ jobs:
   manifests:
     name: Validate manifests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    outputs:
+      container_matrix: ${{ steps.container_matrix.outputs.matrix }}
+      container_count: ${{ steps.container_matrix.outputs.count }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -30,14 +33,20 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: |
-            AD/Pwn/attack-defense-service/checker/requirements.txt
-            AD/Web/self-hosted-service/checker/requirements.txt
+            challenges/AD/Pwn/attack-defense-service/checker/requirements.txt
+            challenges/AD/Web/self-hosted-service/checker/requirements.txt
 
-      - name: Validate event and challenge manifests
-        run: node scripts/validate.mjs
+      - name: Validate manifests with rsctf
+        uses: dimasma0305/rsctf@main
 
-      - name: Compile Python examples
-        run: python3 -m compileall -q AD Koth Jeopardy
+      - name: Validate repository conventions and compile Python examples
+        run: make validate
+
+      - name: Discover container build contexts
+        id: container_matrix
+        run: |
+          python3 scripts/container-images.py check
+          python3 scripts/container-images.py github-output >> "$GITHUB_OUTPUT"
 
       - name: Install pinned checker wheels
         run: |
@@ -62,29 +71,21 @@ jobs:
       - name: Exercise provenance automation clients
         run: node scripts/test-provenance-automation.mjs
 
+      - name: Exercise dynamic container discovery
+        run: python3 scripts/test-container-discovery.py
+
+      - name: Exercise additive catalog validation
+        run: node scripts/test-catalog-extension.mjs
+
   containers:
     name: Build ${{ matrix.name }}
     needs: manifests
+    if: needs.manifests.outputs.container_count != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: static-flag-service
-            context: Jeopardy/Web/static-flag-service/src
-          - name: dynamic-flag-service
-            context: Jeopardy/Web/dynamic-flag-service/src
-          - name: attack-defense-service
-            context: AD/Pwn/attack-defense-service/src
-          - name: self-hosted-service
-            context: AD/Web/self-hosted-service/src
-          - name: king-of-the-hill
-            context: Koth/Pwn/king-of-the-hill/src
-          - name: api-observed-hill
-            context: Koth/Web/api-observed-hill/src
-          - name: provenance-generator
-            context: Jeopardy/Misc/deterministic-variant/generator
+      matrix: ${{ fromJSON(needs.manifests.outputs.container_matrix) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -101,5 +102,13 @@ jobs:
           platforms: linux/amd64
           load: true
           push: false
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          tags: rsctf-example/${{ matrix.tag }}:ci
+          cache-from: type=gha,scope=${{ matrix.tag }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.tag }}
+
+      - name: Verify image health and behavior
+        if: matrix.smoke != ''
+        run: >-
+          python3 scripts/test-container-images.py
+          --image rsctf-example/${{ matrix.tag }}:ci
+          --case ${{ matrix.smoke }}

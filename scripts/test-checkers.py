@@ -551,10 +551,10 @@ def test_decorator_guardrails(library: Path) -> None:
 
 
 def main() -> None:
-    managed = ROOT / "AD/Pwn/attack-defense-service"
-    byoc = ROOT / "AD/Web/self-hosted-service"
-    koth = ROOT / "Koth/Pwn/king-of-the-hill"
-    api_koth = ROOT / "Koth/Web/api-observed-hill"
+    managed = ROOT / "challenges/AD/Pwn/attack-defense-service"
+    byoc = ROOT / "challenges/AD/Web/self-hosted-service"
+    koth = ROOT / "challenges/Koth/Pwn/king-of-the-hill"
+    api_koth = ROOT / "challenges/Koth/Web/api-observed-hill"
     test_decorator_guardrails(managed / "checker/lib.py")
 
     with tempfile.TemporaryDirectory(prefix="rsctf-checkers-") as temporary:

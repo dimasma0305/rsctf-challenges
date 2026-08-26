@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 
 ROOT = Path(__file__).resolve().parent.parent
-OBSERVER_PATH = ROOT / "Koth/Web/api-observed-hill/observer/observer.py"
+OBSERVER_PATH = ROOT / "challenges/Koth/Web/api-observed-hill/observer/observer.py"
 GAME_ID = 7
 CHALLENGE_ID = 42
 SECRET = "koth_api_" + ("a" * 64)
