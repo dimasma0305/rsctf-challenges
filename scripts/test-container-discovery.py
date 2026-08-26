@@ -23,9 +23,11 @@ def add_context(root: Path, relative: str) -> None:
     )
 
 
-def invoke(root: Path, command: str = "matrix") -> subprocess.CompletedProcess[str]:
+def invoke(
+    root: Path, command: str = "matrix", *arguments: str
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), command, "--root", str(root)],
+        [sys.executable, str(SCRIPT), command, "--root", str(root), *arguments],
         check=False,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -135,6 +137,38 @@ class ContainerDiscoveryTests(unittest.TestCase):
             result = invoke(root, "check")
             self.assertEqual(result.returncode, 1)
             self.assertIn("jeopardy-web-new-service", result.stderr)
+
+    def test_selected_docker_command_is_forwarded_to_smoke_runner(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rsctf-matrix-") as directory:
+            root = Path(directory)
+            (root / "challenges").mkdir()
+            add_context(root, "challenges/Jeopardy/Web/new-service/src")
+            scripts = root / "scripts"
+            scripts.mkdir()
+            smoke_arguments = scripts / "smoke-arguments.json"
+            (scripts / "test-container-images.py").write_text(
+                "import json, pathlib, sys\n"
+                "if '--list-cases' in sys.argv:\n"
+                "    print(json.dumps(['jeopardy-web-new-service']))\n"
+                "else:\n"
+                f"    pathlib.Path({str(smoke_arguments)!r}).write_text(json.dumps(sys.argv[1:]))\n",
+                encoding="utf-8",
+            )
+            build_log = root / "docker-arguments.json"
+            fake_docker = root / "fake-docker.py"
+            fake_docker.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, pathlib, sys\n"
+                f"pathlib.Path({str(build_log)!r}).write_text(json.dumps(sys.argv[1:]))\n",
+                encoding="utf-8",
+            )
+            fake_docker.chmod(0o700)
+
+            result = invoke(root, "test", "--docker", str(fake_docker))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(build_log.read_text())[0], "build")
+            forwarded = json.loads(smoke_arguments.read_text())
+            self.assertEqual(forwarded[forwarded.index("--docker") + 1], str(fake_docker))
 
 
 if __name__ == "__main__":

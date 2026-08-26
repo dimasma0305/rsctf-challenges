@@ -165,7 +165,13 @@ def build_images(
         )
 
 
-def smoke_images(root: Path, specs: list[ImageSpec], prefix: str, suffix: str) -> None:
+def smoke_images(
+    root: Path,
+    specs: list[ImageSpec],
+    prefix: str,
+    suffix: str,
+    docker: list[str],
+) -> None:
     runner = root / "scripts" / "test-container-images.py"
     require_real_file(runner, "container smoke runner")
     for spec in specs:
@@ -179,6 +185,8 @@ def smoke_images(root: Path, specs: list[ImageSpec], prefix: str, suffix: str) -
                 spec.image(prefix, suffix),
                 "--case",
                 spec.smoke,
+                "--docker",
+                shlex.join(docker),
             ],
             cwd=root,
             check=True,
@@ -268,7 +276,7 @@ def main() -> int:
                 validate_smoke_coverage(root, specs)
             build_images(root, specs, docker, prefix, suffix)
             if arguments.command == "test":
-                smoke_images(root, specs, prefix, suffix)
+                smoke_images(root, specs, prefix, suffix, docker)
     except (DiscoveryError, OSError, subprocess.SubprocessError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

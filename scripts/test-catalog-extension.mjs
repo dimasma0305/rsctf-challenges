@@ -31,6 +31,9 @@ description: Regression fixture proving that extra packages are allowed.
 type: StaticAttachment
 category: Misc
 provide: dist
+minScoreRate: 0.2
+difficulty: 3
+submissionLimit: 12
 flags:
   - "rsctf{additional_catalog_fixture}"
 `,

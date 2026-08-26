@@ -124,6 +124,14 @@ const JEOPARDY_TYPES = new Set([
   'DynamicContainer',
 ])
 
+const DEFAULT_SCORING_FIXTURES = new Set([
+  'challenges/Jeopardy/Misc/deterministic-variant',
+  'challenges/Jeopardy/Misc/dynamic-handout',
+  'challenges/Jeopardy/Misc/static-handout',
+  'challenges/Jeopardy/Web/dynamic-flag-service',
+  'challenges/Jeopardy/Web/static-flag-service',
+])
+
 const MINIMUM_TYPE_COUNTS = new Map(
   TYPES.map((type) => [
     type,
@@ -805,10 +813,17 @@ function validateChallenge(file, model) {
   ) {
     reportError(file, 'submissionLimit must be a non-negative integer')
   }
-  if (JEOPARDY_TYPES.has(model.type)) {
+  const packagePath = relative(ROOT, dirname(file)).split(sep).join('/')
+  if (DEFAULT_SCORING_FIXTURES.has(packagePath)) {
     for (const key of ['minScoreRate', 'difficulty', 'submissionLimit']) {
       if (Object.hasOwn(model, key)) {
         reportError(file, `${key} must be omitted so this example inherits the rsctf default`)
+      }
+    }
+  } else if (!JEOPARDY_TYPES.has(model.type)) {
+    for (const key of ['minScoreRate', 'difficulty', 'submissionLimit']) {
+      if (Object.hasOwn(model, key)) {
+        reportError(file, `${key} applies only to Jeopardy challenge types`)
       }
     }
   }
@@ -900,7 +915,6 @@ function validateChallenge(file, model) {
     }
     const dockerfile = resolve(dirname(file), 'src', 'Dockerfile')
     const app = resolve(dirname(file), 'src', 'app.py')
-    const packagePath = relative(ROOT, dirname(file)).split(sep).join('/')
     if (!existsSync(dockerfile) || !existsSync(app)) {
       reportError(file, 'auto-built sample image must provide src/Dockerfile and src/app.py')
     }

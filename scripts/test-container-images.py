@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import http.client
 import json
+import os
 from pathlib import Path
+import shlex
 import socket
 import subprocess
 import tempfile
@@ -33,9 +35,11 @@ CASES = {
 SMOKE_LABEL = "org.rsctf.example-smoke"
 
 
-def docker(*arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+def docker(
+    command: list[str], *arguments: str, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["docker", *arguments],
+        [*command, *arguments],
         check=check,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -120,8 +124,8 @@ def smoke(case: str, port: int) -> None:
             raise RuntimeError(f"POST /start returned an invalid puzzle: status={status}, body={body!r}")
 
 
-def published_port(container: str) -> int:
-    output = docker("port", container, "8080/tcp").stdout.strip()
+def published_port(command: list[str], container: str) -> int:
+    output = docker(command, "port", container, "8080/tcp").stdout.strip()
     endpoint = output.splitlines()[0] if output else ""
     try:
         host, raw_port = endpoint.rsplit(":", 1)
@@ -133,11 +137,12 @@ def published_port(container: str) -> int:
     return port
 
 
-def wait_healthy(container: str) -> None:
+def wait_healthy(command: list[str], container: str) -> None:
     deadline = time.monotonic() + 35
     last = "unknown"
     while time.monotonic() < deadline:
         result = docker(
+            command,
             "inspect",
             "--format",
             "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}",
@@ -152,8 +157,9 @@ def wait_healthy(container: str) -> None:
     raise RuntimeError(f"container did not become healthy; final Docker state was {last!r}")
 
 
-def remove_owned_container(container: str, ownership: str) -> None:
+def remove_owned_container(command: list[str], container: str, ownership: str) -> None:
     result = docker(
+        command,
         "inspect",
         "--format",
         f'{{{{.Name}}}} {{{{index .Config.Labels "{SMOKE_LABEL}"}}}}',
@@ -166,10 +172,10 @@ def remove_owned_container(container: str, ownership: str) -> None:
         raise RuntimeError(
             f"refusing to remove Docker container {container!r}: ownership label mismatch"
         )
-    docker("rm", "--force", container)
+    docker(command, "rm", "--force", container)
 
 
-def run(image: str, case: str) -> None:
+def run(command: list[str], image: str, case: str) -> None:
     ownership = uuid.uuid4().hex
     container = f"rsctf-example-smoke-{ownership}"
     with tempfile.TemporaryDirectory(prefix="rsctf-example-container-") as temporary:
@@ -197,11 +203,11 @@ def run(image: str, case: str) -> None:
         arguments.append(image)
 
         try:
-            docker(*arguments)
-            wait_healthy(container)
-            smoke(case, published_port(container))
+            docker(command, *arguments)
+            wait_healthy(command, container)
+            smoke(case, published_port(command, container))
         finally:
-            remove_owned_container(container, ownership)
+            remove_owned_container(command, container, ownership)
 
 
 def main() -> None:
@@ -209,6 +215,7 @@ def main() -> None:
     parser.add_argument("--list-cases", action="store_true")
     parser.add_argument("--image")
     parser.add_argument("--case", choices=sorted(CASES))
+    parser.add_argument("--docker", default=os.environ.get("DOCKER", "docker"))
     arguments = parser.parse_args()
     if arguments.list_cases:
         if arguments.image is not None or arguments.case is not None:
@@ -219,7 +226,10 @@ def main() -> None:
         parser.error("--image and --case are required unless --list-cases is used")
     if not arguments.image.strip() or any(character.isspace() for character in arguments.image):
         parser.error("--image must be one non-empty Docker image reference")
-    run(arguments.image, arguments.case)
+    command = shlex.split(arguments.docker)
+    if not command:
+        parser.error("--docker must name a Docker-compatible command")
+    run(command, arguments.image, arguments.case)
     print(f"OK: {arguments.case} image became healthy and passed its functional smoke test.")
 
 
