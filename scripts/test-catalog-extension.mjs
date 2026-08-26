@@ -51,6 +51,32 @@ flags:
   if (result.status !== 0) {
     throw new Error(`extended catalog validation failed:\n${result.stdout}${result.stderr}`)
   }
+
+  const invalidPackageRoot = join(checkout, 'challenges/Jeopardy/Misc/missing-category')
+  mkdirSync(invalidPackageRoot, { recursive: true })
+  writeFileSync(
+    join(invalidPackageRoot, 'challenge.yaml'),
+    `name: Invalid missing-category fixture
+author: rsctf test
+description: Regression fixture proving category is mandatory.
+type: StaticAttachment
+flags:
+  - "rsctf{missing_category_must_fail}"
+`,
+    'utf8',
+  )
+  const rejected = spawnSync(process.execPath, ['scripts/validate.mjs'], {
+    cwd: checkout,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 10_000,
+  })
+  if (rejected.error) throw rejected.error
+  if (rejected.status === 0 || !`${rejected.stdout}${rejected.stderr}`.includes('category is required')) {
+    throw new Error(
+      `missing-category package was not rejected as expected:\n${rejected.stdout}${rejected.stderr}`,
+    )
+  }
   console.log('OK: an additional challenge package passes catalog validation.')
 } finally {
   rmSync(temporary, { recursive: true, force: true })

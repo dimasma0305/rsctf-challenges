@@ -792,10 +792,12 @@ function validateChallenge(file, model) {
   }
   if (!TYPES.includes(model.type)) reportError(file, `unknown challenge type: ${model.type}`)
   if (model.ignore === true) reportError(file, 'ignore: true would skip this example')
-  if (model.category !== undefined && !CATEGORIES.has(model.category)) {
+  if (typeof model.category !== 'string' || model.category.trim() === '') {
+    reportError(file, 'category is required')
+  } else if (!CATEGORIES.has(model.category)) {
     reportError(file, `unknown category: ${model.category}`)
   }
-  if (typeof model.type === 'string' && typeof model.category === 'string') {
+  if (TYPES.includes(model.type) && CATEGORIES.has(model.category)) {
     checkChallengeLayout(file, model)
   }
   if (
