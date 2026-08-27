@@ -38,9 +38,10 @@ checked box means the behavior was observed on the exact revision being proposed
 
 ## Player verification
 
-- [ ] A fresh playtester received only the declared service/handout/hybrid contract.
+- [ ] A fresh playtester received only the declared service/handout/hybrid/BYOC contract.
 - [ ] The run was isolated from author notes, source not issued to players, solver,
-      repository history, old reports, logs, and container administration.
+      repository history, old reports, privileged logs, organizer-side container
+      administration, and container access outside the declared BYOC contract.
 - [ ] Required non-obvious transitions have visible breadcrumbs.
 - [ ] High- and critical-severity unintended paths are fixed and retested.
 - [ ] Difficulty is based on the blind report, not only the author's solve time.

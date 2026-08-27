@@ -45,9 +45,12 @@ author documentation and remain beside the manifest.
 
 ## Player boundary
 
-A playtest must match the real delivery mode: service only, handout only, or hybrid.
-Do not give a black-box player repository source, the intended solution, a known-good
-solver, container administration, build logs, or inherited author/agent context.
+A playtest must match the real delivery mode: managed service, handout, hybrid, or
+self-hosted BYOC. Do not give a player repository source, the intended solution, a
+known-good solver, build logs, organizer-side container administration, or inherited
+author/agent context unless that material is part of the real player delivery. A BYOC
+player receives the exact setup bundle and image and may control only the team-owned
+host and containers that the real event permits.
 `playtest/` is gitignored convenience space, not a sandbox; enforce isolation in the
 runner or use a separate workspace/account.
 

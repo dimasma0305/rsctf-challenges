@@ -28,6 +28,7 @@ Choose exactly one mode:
 | service | public challenge copy and the issued URL or host/port | source, image, build logs, container access, or a handout that players do not receive |
 | handout | byte-for-byte contents of the public `dist/` delivery | target, author notes, repository history, solver, or real flag |
 | hybrid | the exact public target and exact public handout | any additional local artifact or privileged service access |
+| byoc | public challenge copy, the team-specific setup bundle and immutable service image, and the team-owned host/container controls available during the event | organizer source or notes, build logs, platform administration, another team's bundle or token, or any undeclared capability |
 
 Write the contract down before starting. If the real event delivery is ambiguous,
 resolve it with the author instead of choosing the more revealing option.
@@ -35,24 +36,29 @@ resolve it with the author instead of choosing the more revealing option.
 ## Prepare an isolated room
 
 Use the ignored root `playtest/` directory only as a staging convenience. Copy in
-the public brief and declared handout files, if any. Start services and retain build
-logs from the author workspace, outside the room. Use a redacted playtest flag.
+the public brief and declared handout files, if any. For a managed service, start it
+and retain build logs from the author workspace, outside the room. For BYOC, deliver
+the exact setup bundle and image through the player-visible flow, then let the tester
+operate them on an isolated team-owned host as a real team would. Use a redacted
+playtest flag.
 
 `playtest/` is not a sandbox. For a credible blind run, give a fresh human account or
 agent session a separate workspace containing only the prepared room. Do not inherit
 the author conversation, intended chain, prior reports, parent filesystem, Git
-history, container administration, process inspection, or undeclared localhost
-services. Permit only the issued target and normal player-owned callbacks that the
-real event permits.
+history, organizer-side container administration, process inspection outside the
+declared BYOC host, or undeclared localhost services. Permit only the issued target,
+the declared BYOC controls, and normal player-owned callbacks that the real event
+permits.
 
 A useful `PLAYER-BRIEF.md` is deliberately small:
 
 ```markdown
 # Player brief
 
-- Mode: service | handout | hybrid
+- Mode: service | handout | hybrid | byoc
 - Target: exact public URL or host/port, if supplied
 - Files: exact filenames, if supplied
+- BYOC setup: exact setup/image delivery path, if supplied
 - Public description: exact platform copy
 - Time started: UTC timestamp
 ```
@@ -125,8 +131,9 @@ For any screenshot you keep:
 - capture the current build through the same route and identity available to a player;
 - show the command for terminal output and never render a hand-written transcript;
 - redact flags, tokens, production hostnames, and unrelated personal data;
-- do not use container shells, internal logs, database views, or mocked browser state
-  as player evidence;
+- do not use organizer-only container shells, internal logs, database views, or mocked
+  browser state as player evidence; team-owned BYOC views are valid only when the
+  declared player contract includes them;
 - use descriptive names such as `ui-login.png`, `terminal-solve.png`, or
   `artifact-inspection.png`; and
 - inspect the final image for clipping, stale controls, hidden secrets, and readable

@@ -37,8 +37,9 @@ references merely because they exist.
 
 1. Inspect Git status, the closest example package, its manifest, relevant tests,
    and current player delivery contract. Preserve unrelated changes.
-2. State whether the player receives a service, a handout, or both. Separate public
-   player material from author source, secrets, solvers, and operational tooling.
+2. State whether the player receives a managed service, a handout, both, or a BYOC
+   bundle and image. Separate public player material and team-owned BYOC controls from
+   author source, secrets, solvers, and organizer operational tooling.
 3. Copy the closest cohesive package and delete components the new challenge does
    not need. Keep paths under `challenges/<mode>/<category>/<slug>/`.
 4. Put behavior in its owning layer: manifest metadata in `challenge.yaml`, service

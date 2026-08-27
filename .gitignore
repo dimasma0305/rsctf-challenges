@@ -1,6 +1,6 @@
 __pycache__/
 *.py[cod]
-playtest/
+/playtest/
 .env
 .env.*
 !.env.example
