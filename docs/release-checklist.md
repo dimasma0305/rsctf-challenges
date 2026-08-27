@@ -3,11 +3,16 @@
 Use this before requesting a Repository Bindings scan or enabling a challenge. Read
 [Importing with Repository Bindings](importing.md) for the scan/rescan lifecycle. A
 checked box means the behavior was observed on the exact revision being proposed.
+AI readiness requests automatically route to `$rsctf-challenge-release-review`, which
+applies these gates without authorizing an import or enablement by itself.
 
 ## Package
 
 - [ ] The package is under `challenges/<mode>/<category>/<slug>/` and the manifest
       category matches the directory.
+- [ ] Every package component has an owner in the
+      [challenge authoring contract](authoring-contract.md); copied placeholders, duplicate
+      files, scratch artifacts, and unused directories are removed.
 - [ ] Player copy states the objective without leaking the intended exploit.
 - [ ] `dist/` contains exactly the files players receive, with no solver, writeup,
       source, history, real flag, or organizer notes unless source is intentionally
@@ -16,6 +21,12 @@ checked box means the behavior was observed on the exact revision being proposed
       observer secrets, admin tokens, or production-only configuration.
 - [ ] Every dependency is necessary, reviewed, and pinned appropriately.
 - [ ] All committed flags are treated as disclosed and replaced for the real event.
+- [ ] Every package commits a concise `solution/README.md` and simple `solution/solve.py`;
+      neither appears in the handout, image context, generated content, observer bundle, or
+      playtest room.
+- [ ] The organizer solution follows the [standard format](solutions.md), records the exact
+      candidate commit and applicable artifact/image hashes, and has a durable
+      access-controlled home before a real event.
 
 ## Functional verification
 
@@ -31,6 +42,8 @@ checked box means the behavior was observed on the exact revision being proposed
       player-visible protocol check in hidden staging.
 - [ ] The service was exercised through the same protocol and exposed port players
       will use, including failure and timeout behavior.
+- [ ] A second trusted maintainer reproduced the documented organizer solution or reference
+      solver from a clean target/handout for the exact candidate revision.
 - [ ] A&D checks retrieve the current rotating flag through player-visible behavior.
 - [ ] KotH checks are read-only and do not read or alter the ownership/control source.
 - [ ] Resource limits, writable paths, restarts, and flag rotation were tested on the

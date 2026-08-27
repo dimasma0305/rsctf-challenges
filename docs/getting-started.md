@@ -2,7 +2,16 @@
 
 This repository demonstrates one hidden event and every current rsctf challenge
 type. Start by copying the closest working package; do not assemble a manifest from
-memory.
+memory. Read the [challenge authoring contract](authoring-contract.md) before adding a
+new directory; it defines the complete package layout, file ownership, and release
+lifecycle.
+
+For an AI-assisted end-to-end workflow, start with `$rsctf-challenge-design`, implement
+with `$rsctf-challenge-authoring`, prove the intended solve with
+`$rsctf-challenge-solution`, run a fresh blind solve with
+`$rsctf-challenge-playtest`, review it with `$rsctf-playtest-review`, and finish with
+`$rsctf-challenge-release-review`. The repository selects these skills implicitly when a
+request clearly matches one phase.
 
 ## Prerequisites
 
@@ -40,8 +49,15 @@ challenges/<mode>/<category>/<slug>/
 ├── src/                 # trusted local container build context, when applicable
 ├── checker/             # A&D/KotH functional checker, when applicable
 ├── generator/           # deterministic variant generator, when applicable
-└── observer/            # organizer-run referee, when applicable
+├── observer/            # organizer-run referee, when applicable
+└── solution/            # required tracked organizer material
+    ├── README.md        # concise writeup
+    └── solve.py         # simple reference solver
 ```
+
+`challenge.yaml`, `solution/README.md`, and `solution/solve.py` are universal. Delete every
+other optional component the challenge does not use. The component matrix and audience
+boundary are defined in the [authoring contract](authoring-contract.md).
 
 For example:
 
@@ -65,6 +81,19 @@ Then make these edits:
    bounded, read-only, and independent of execution order.
 5. Update the relevant page under `docs/` if the new package demonstrates a contract
    teammates need to understand.
+
+The copied package already contains a working solution example. Replace it as soon as the new
+design becomes testable:
+
+```sh
+cp docs/templates/solution.md \
+  challenges/Jeopardy/Web/my-service/solution/README.md
+cp docs/templates/solve.py \
+  challenges/Jeopardy/Web/my-service/solution/solve.py
+```
+
+Follow [Solutions and reference solvers](solutions.md). Keep a real pre-event repository
+restricted because anyone with Git read access can read these tracked organizer files.
 
 The category must be one supported by the importer and must match the middle path
 component. See the [manifest reference](configuration.md) for the complete list and
@@ -119,7 +148,9 @@ flag rotation, checker verdicts, protocol correctness, or solvability.
 
 Next exercise challenge-specific behavior in hidden staging and perform a
 player-equivalent run using [Playtesting](playtesting.md). A healthy container or
-working author solver confirms mechanics, not discoverability.
+working author solver confirms mechanics, not discoverability. Verify the organizer solution
+against the exact candidate revision before starting a separate blind run that cannot read
+it.
 
 ## Import safely
 

@@ -3,6 +3,12 @@
 Playtesting answers a different question from automated testing: can a fresh player
 understand and solve the challenge using only what the event actually gives them?
 
+AI agents use `$rsctf-challenge-playtest` to prepare and hand off the clean room, then
+`$rsctf-playtest-review` to analyze the completed report from the author side. Both are
+available for implicit selection from matching requests and keep the blind solver separate
+from author context. Invoke `$rsctf-challenge-playtest` explicitly when you need deterministic
+routing into the clean-room workflow.
+
 ## First verify the build
 
 From the repository root:
@@ -41,6 +47,12 @@ and retain build logs from the author workspace, outside the room. For BYOC, del
 the exact setup bundle and image through the player-visible flow, then let the tester
 operate them on an isolated team-owned host as a real team would. Use a redacted
 playtest flag.
+
+The package-local `solution/` directory, its reference solver, organizer screenshots, and
+verification record are author inputs. They never enter `playtest/`, and the blind solver
+must not inherit a conversation that disclosed them. Read
+[Solutions and reference solvers](solutions.md) for the organizer format; use it only before
+or after, never during, the isolated player run.
 
 `playtest/` is not a sandbox. For a credible blind run, give a fresh human account or
 agent session a separate workspace containing only the prepared room. Do not inherit

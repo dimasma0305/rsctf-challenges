@@ -1,6 +1,15 @@
 __pycache__/
 *.py[cod]
 /playtest/
+# Keep the small reviewed solution surface trackable; ignore local scratch by default.
+/challenges/*/*/*/solution/*
+!/challenges/*/*/*/solution/README.md
+!/challenges/*/*/*/solution/solve.py
+!/challenges/*/*/*/solution/requirements.txt
+!/challenges/*/*/*/solution/assets/
+!/challenges/*/*/*/solution/assets/**
+!/challenges/*/*/*/solution/fixtures/
+!/challenges/*/*/*/solution/fixtures/**
 .env
 .env.*
 !.env.example

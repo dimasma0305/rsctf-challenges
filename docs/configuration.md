@@ -3,12 +3,13 @@
 This page describes the configuration that the current rsctf Repository
 Bindings importer actually consumes. The manifests under `challenges/` are
 complete, importable examples; copy the closest one and change only what your
-challenge needs.
+challenge needs. For directory ownership and minimal package layouts by challenge type,
+use the [challenge authoring contract](authoring-contract.md).
 
 ## Repository layout
 
-One `.gzevent` creates one game and owns every `challenge.yaml` below its
-directory. This repository additionally enforces a readable convention:
+One `.gzevent` creates one game and owns every `challenge.yaml` or `challenge.yml` below
+its directory. This repository adopts the following readable authoring convention:
 
 ```text
 challenges/AD/<category>/<challenge>/challenge.yaml

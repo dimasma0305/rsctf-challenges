@@ -17,6 +17,12 @@ not execute builds, install checker wheels, verify backend networking, or prove 
 challenge is solvable, so it cannot replace the hidden staging scan and player smoke
 test below.
 
+Also inspect the committed tree, not only the working directory. Each package intentionally
+tracks `solution/README.md` and `solution/solve.py`. Repository readers can see them, but they
+must not enter `provide`, a Docker context, generated player content, an observer bundle, or a
+blind-playtest room. Keep real pre-event repository access restricted and keep live secrets
+out of Git entirely.
+
 The GitHub manifest job imports `dimasma0305/rsctf` and invokes the CLI from the
 corresponding official rsctf image. The action resolves the pulled image to an
 immutable digest before execution; an optional image override must be an exact
@@ -26,7 +32,8 @@ discovery script participates in either decision.
 
 ## First hidden import
 
-1. Push the intended revision to a repository and record the exact commit.
+1. Reproduce the organizer writeup and reference solver on the intended revision, mark them
+   frozen only after that run, then push and record the exact commit.
 2. Sign in as an rsctf administrator and open **Admin → Repository Bindings**
    (`/admin/repo-bindings`).
 3. Add the Git URL and branch. A public repository needs no token. For a private

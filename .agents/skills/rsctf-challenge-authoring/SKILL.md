@@ -1,6 +1,6 @@
 ---
 name: rsctf-challenge-authoring
-description: Create, edit, review, validate, or playtest challenge packages in an rsctf Repository Bindings repository. Use for manifests, challenge source, handouts, A&D/KotH checkers, deterministic generators, or challenge-release readiness; do not use for rsctf platform implementation work outside a challenge repository.
+description: Create or modify rsctf Repository Bindings challenge packages. Use for scaffolding package layout, editing challenge manifests, player handouts, container source, A&D/KotH checkers, deterministic generators, or KotH observers; use the separate solution, playtest, and release-review skills for those phases.
 ---
 
 # rsctf Challenge Authoring
@@ -13,8 +13,11 @@ request explicitly changes them.
 
 Read each selected document completely before editing:
 
-- New package, repository layout, or first-time authoring:
+- First-time authoring or choosing an example:
   [Getting started](../../../docs/getting-started.md)
+- Repository/package layout, component ownership, or restructuring during implementation:
+  [Authoring contract](../../../docs/authoring-contract.md) and
+  [agent package contract](references/package-contract.md)
 - `.gzevent`, `challenge.yaml`, attachments, containers, A&D/KotH fields:
   [Manifest reference](../../../docs/configuration.md)
 - A&D/KotH checker or verdict behavior:
@@ -23,12 +26,8 @@ Read each selected document completely before editing:
   [Trusted KotH referee](../../../docs/koth-referee.md)
 - Deterministic variants or trusted solve receipts:
   [Provenance](../../../docs/provenance.md)
-- Blind solve, fairness, unintended path, or screenshot evidence:
-  [Human playtest guide](../../../docs/playtesting.md) and
-  [agent playtest boundaries](references/playtesting.md)
-- Import, shipping, or final readiness review:
-  [Repository Bindings](../../../docs/importing.md) and
-  [release review](references/release-review.md)
+- Import mechanics needed while authoring:
+  [Repository Bindings](../../../docs/importing.md)
 
 For a cross-cutting request, read every applicable route. Do not read unrelated
 references merely because they exist.
@@ -36,18 +35,20 @@ references merely because they exist.
 ## Workflow
 
 1. Inspect Git status, the closest example package, its manifest, relevant tests,
-   and current player delivery contract. Preserve unrelated changes.
-2. State whether the player receives a managed service, a handout, both, or a BYOC
-   bundle and image. Separate public player material and team-owned BYOC controls from
-   author source, secrets, solvers, and organizer operational tooling.
-3. Copy the closest cohesive package and delete components the new challenge does
-   not need. Keep paths under `challenges/<mode>/<category>/<slug>/`.
+   current player delivery contract, and exact audience of every affected file. Preserve
+   unrelated changes.
+2. State the challenge type, player delivery mode, flag/control flow, and runtime owner.
+   Separate public player material and team-owned BYOC controls from author source,
+   secrets, solvers, and organizer operational tooling.
+3. Copy the closest cohesive package and delete components the new challenge does not
+   need. Keep paths under `challenges/<mode>/<category>/<slug>/` and follow the canonical
+   ownership table.
 4. Put behavior in its owning layer: manifest metadata in `challenge.yaml`, service
    code in `src/`, player files in `dist/`, checker protocol in `checker/run.py`,
    deterministic generation in `generator/`, and trusted referee logic in
    `observer/`.
-5. Add or update focused regression coverage for contract changes. Keep inputs
-   bounded, dependencies pinned, and secrets absent from source and evidence.
+5. Add or update focused regression coverage for contract changes. Keep inputs bounded,
+   dependencies pinned, and secrets absent from source and evidence.
 6. Run focused checks, `make validate`, and `make matrix`. Both commands must use the
    matching official `rsctf` binary; do not add a repository-local validator,
    discovery helper, or wrapper. Confirm CI imports the maintained
@@ -55,8 +56,10 @@ references merely because they exist.
    service image's Docker `HEALTHCHECK`. When runtime or generator inputs change,
    require that dynamic container job and separately exercise player-visible
    protocol, checker verdicts, and flag behavior in hidden staging.
-7. For readiness claims, require a player-equivalent blind run and hidden staging
-   import; a solver run or green CI job alone is insufficient.
+7. When the request includes downstream verification, continue with
+   `$rsctf-challenge-solution`, `$rsctf-challenge-playtest`, and
+   `$rsctf-challenge-release-review` as applicable. Do not substitute an authoring smoke
+   test for those workflows.
 
 ## Hard boundaries
 
@@ -65,8 +68,12 @@ references merely because they exist.
 - Omit `minScoreRate`, `difficulty`, and `submissionLimit` when rsctf's current
   Jeopardy defaults are intended. Add them only for a deliberate scoring-policy
   override, and omit them from A&D and KotH manifests.
-- Never commit organizer tokens, observer HMAC secrets, private writeups, production
-  hostnames, database dumps, container logs containing flags, or live credentials.
+- Never commit organizer tokens, observer HMAC secrets, production hostnames, database dumps,
+  container logs containing flags, live credentials, or unredacted secret evidence.
+- Give every package a tracked organizer `solution/README.md` and small `solution/solve.py`.
+  Keep them outside every player import surface, build context, handout, and blind-playtest
+  input. Never add a manifest inside `solution/` because local recursive validation still
+  discovers nested manifest files.
 - A&D checkers must verify health and the current flag without mutating service state.
   KotH checkers receive no flag and must not inspect or alter the control source.
 - Checkers have one target IP/port, bounded time and output, a read-only source/venv,
