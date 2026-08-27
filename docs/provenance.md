@@ -36,13 +36,16 @@ If the generator includes the optional `artifactSha256`, it hashes the UTF-8
 compact JSON form of `manifest` with object keys sorted lexicographically and
 array order preserved. rsctf independently normalizes and checks that value.
 
-Run the contract test locally:
+Validate the package and inspect its discovered build context locally:
 
 ```sh
-python3 scripts/test-provenance.py
-docker build -t rsctf-provenance-generator:test \
-  challenges/Jeopardy/Misc/deterministic-variant/generator
+make validate
+make matrix
 ```
+
+CI builds the emitted generator context. The hidden Repository Bindings scan is the
+authoritative runtime check: rsctf runs the deterministic contract twice and rejects
+non-identical or invalid output.
 
 ## Deployment topology and registry fallback
 
@@ -96,29 +99,18 @@ The same key derives deterministic seeds across restarts. Rotating it after
 variants have been frozen does not rewrite their immutable records, but it
 changes any future generation and therefore requires an explicit event plan.
 
-Accept the event's teams before generating variants. Then run the package-free
-automation client with an administrator JWT kept in the automation secret
-store:
-
-```sh
-RSCTF_URL=https://ctf.example \
-RSCTF_GAME_ID=42 \
-RSCTF_EXPECTED_VARIANTS=24 \
-RSCTF_ADMIN_TOKEN='ADMIN_JWT' \
-node scripts/generate-variants.mjs
-```
-
-The script calls:
+Accept the event's teams before generating variants. From a trusted administrator
+client, using an administrator JWT kept in the automation secret store, call:
 
 1. `POST /api/edit/games/42/variants/generate`
 2. `GET /api/edit/games/42/variants`
 
 Generation is idempotent: it creates only missing frozen variants. Run it again
-for teams accepted later, still before the start time. Set
-`RSCTF_EXPECTED_VARIANTS` to the accepted/suspended participation count times
-the enabled `PerParticipation` challenge count; the client fails if the frozen
-inventory does not match. After the event starts, generation and policy changes
-are rejected.
+for teams accepted later, still before the start time. Verify that the returned
+inventory equals the accepted/suspended participation count times the enabled
+`PerParticipation` challenge count. After the event starts, generation and policy
+changes are rejected. This repository does not ship an admin-token client; use your
+organization's reviewed automation and fail closed on non-2xx or malformed responses.
 
 ## Optional trusted solve receipts
 
@@ -138,11 +130,12 @@ independent machine credential:
 RSCTF_SOLVE_RECEIPT_ISSUER_TOKEN=<at-least-32-non-whitespace-characters>
 ```
 
-After the verifier has authenticated the player and confirmed the solve, it can
-pipe this request into the included adapter:
+After the verifier has authenticated the player and confirmed the solve, its trusted
+backend sends this JSON body to
+`POST /api/internal/event-security/solve-receipts`:
 
-```sh
-printf '%s\n' '{
+```json
+{
   "gameId": 42,
   "challengeId": 17,
   "participationId": 93,
@@ -150,22 +143,20 @@ printf '%s\n' '{
   "variantId": "018f3c6a-d79b-7cc0-8f68-8fdbad0f57bb",
   "answer": "rsctf{sum_10485}",
   "issuerIdentity": "example-verifier-v1"
-}' | \
-RSCTF_CONTROL_URL=https://control.internal.example \
-RSCTF_SOLVE_RECEIPT_ISSUER_TOKEN='MACHINE_SECRET' \
-node scripts/issue-solve-receipt.mjs
+}
 ```
 
 For a challenge without generated variants, send `"variantId": null`. For a
 generated challenge, use the canonical variant ID exposed in that participant's
-challenge details; rsctf rejects any mismatch. The adapter calls the protected
-control-only endpoint and prints the short-lived proof that the verifier returns
-to the player. The player submits that proof alongside the exact answer. rsctf
-binds it to the game, challenge, participation, optional user, canonical variant,
-answer hash, issuer, and expiry, then consumes it in the grading transaction.
+challenge details; rsctf rejects any mismatch. Authenticate with
+`Authorization: Bearer <RSCTF_SOLVE_RECEIPT_ISSUER_TOKEN>` over the protected control
+network. Return the endpoint's short-lived proof to the player, who submits it beside
+the exact answer. rsctf binds the proof to the game, challenge, participation,
+optional user, canonical variant, answer hash, issuer, and expiry, then consumes it
+in the grading transaction.
 
-`scripts/issue-solve-receipt.mjs` is intentionally only an authenticated API
-adapter. Do not expose it directly to players and do not treat receipt issuance
-as verification. The verifier must derive participation identity from trusted
-authentication rather than trusting player-supplied IDs, and arbitrary player
-code must run only in a separate hardened judge.
+Do not expose this endpoint or its credential directly to players, and do not treat
+receipt issuance as verification. The verifier must derive participation identity
+from trusted authentication rather than trusting player-supplied IDs, and arbitrary
+player code must run only in a separate hardened judge. This repository intentionally
+does not ship a receipt client or verifier implementation.

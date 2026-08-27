@@ -6,13 +6,12 @@ memory.
 
 ## Prerequisites
 
-- Node.js 20 or newer for the package-free manifest validator and API tests.
-- Python 3.12 or newer for services, generators, observers, and checker tests.
+- Python 3.12 or newer when developing the included services, generators, observers,
+  or checkers.
 - Docker when building or locally running container challenges.
 - The `rsctf` binary from the matching release for local importer-owned schema and
-  semantic validation. GitHub Actions obtains it through the reusable rsctf action.
-- Network access to install the two exact checker dependencies when running the full
-  test suite for the first time.
+  semantic validation and container discovery. GitHub Actions obtains it through the
+  reusable rsctf action.
 
 Run `make help` at any time to see the supported commands.
 
@@ -77,21 +76,21 @@ Run focused commands early, then the complete local suite:
 
 ```sh
 make validate
-make validate-platform
-make test
+make matrix
 ```
 
-`make validate` checks this catalog's layout, documentation, and fixtures.
-`make validate-platform` invokes rsctf's own offline parser and semantic checks;
-set `RSCTF=/path/to/rsctf` when the binary is not on `PATH`.
-Run both: the first owns repository conventions, while the second owns platform
-format compatibility.
+`make validate` invokes rsctf's offline parser and semantic checks with warnings
+treated as errors. `make matrix` asks the same binary to validate the repository and
+emit every direct service or generator Docker build context. Set
+`RSCTF=/path/to/rsctf` when the matching binary is not on `PATH`.
 
-GitHub Actions does not substitute the local validator for rsctf or require a copied
-wrapper script. The manifest job imports the maintained action directly:
+GitHub Actions uses the same rsctf validation contract without requiring a copied
+wrapper or repository-local checker. The manifest job imports the maintained action
+directly:
 
 ```yaml
 - name: Validate manifests with rsctf
+  id: rsctf
   uses: dimasma0305/rsctf@main
 ```
 
@@ -99,19 +98,11 @@ The action selects the matching official rsctf image, pulls it, resolves the res
 to an immutable digest, verifies its rsctf source/version labels, and runs
 `/usr/local/bin/rsctf challenge check --github --deny-warnings /repository`. The
 checkout is mounted read-only into a network-disabled, capability-free, read-only
-container. Pin the `uses` ref to the matching rsctf release tag after that release
-contains the action. For a commit-SHA action pin, pass the matching exact
-`ghcr.io/dimasma0305/rsctf@sha256:...` through the action's `image` input.
-
-If container source, a Dockerfile, or a generator changed:
-
-```sh
-make test-container-images
-```
-
-That target builds every image, waits for each long-running service to become
-Docker-healthy, and exercises its player-visible protocol. The one-shot variant
-generator is contract-tested separately and intentionally has no health check.
+container. It also runs `rsctf challenge matrix` and exposes the resulting
+`container_matrix` and `container_count` outputs. Pin the `uses` ref to the matching
+rsctf release tag after that release contains the action. For a commit-SHA action
+pin, pass the matching exact `ghcr.io/dimasma0305/rsctf@sha256:...` through the
+action's `image` input.
 
 Container jobs are discovered automatically from these direct package paths:
 
@@ -121,15 +112,14 @@ challenges/<mode>/<category>/<slug>/generator/Dockerfile
 ```
 
 Do not add a package to the GitHub Actions matrix or `Makefile` by hand. A `src/`
-context becomes a service job and its normalized `<mode>-<category>-<slug>` tag
-becomes the required functional smoke case; a `generator/` context is build-only.
-When copying and renaming a service, add that generated case to `CASES` and its
-player-visible assertions to
-`scripts/test-container-images.py`. `make test` fails if any discovered service lacks
-that handler, so new images cannot silently receive build-only coverage.
+context becomes a service job; a `generator/` context is build-only. CI builds each
+emitted context and runs service containers until their Docker `HEALTHCHECK` reports
+healthy. This proves the image can start under the CI restrictions; it does not prove
+flag rotation, checker verdicts, protocol correctness, or solvability.
 
-Next perform a player-equivalent run using [Playtesting](playtesting.md). A working
-author solver or green smoke test confirms mechanics, not discoverability.
+Next exercise challenge-specific behavior in hidden staging and perform a
+player-equivalent run using [Playtesting](playtesting.md). A healthy container or
+working author solver confirms mechanics, not discoverability.
 
 ## Import safely
 

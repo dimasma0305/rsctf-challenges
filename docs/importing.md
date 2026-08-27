@@ -4,13 +4,12 @@ Import only a reviewed commit. Repository Bindings is an administrator trust
 boundary: a scan reads manifests, archives source, builds local Docker contexts and
 generators, and prepares checker dependencies.
 
-Before the first hidden import, run both the repository checks and rsctf's own offline
-preflight:
+Before the first hidden import, run rsctf's offline preflight and inspect the dynamic
+container matrix:
 
 ```sh
 make validate
-make validate-platform
-make test-container-images
+make matrix
 ```
 
 The CLI catches importer-schema and static package errors without a database. It does
@@ -21,9 +20,9 @@ test below.
 The GitHub manifest job imports `dimasma0305/rsctf` and invokes the CLI from the
 corresponding official rsctf image. The action resolves the pulled image to an
 immutable digest before execution; an optional image override must be an exact
-digest from the action repository's GHCR package. The local JavaScript validator
-still checks this template's conventions, but it is additional coverage and is not
-the platform compatibility authority.
+digest from the action repository's GHCR package. It also exposes rsctf's discovered
+container matrix for the repository's build job. No repository-local validation or
+discovery script participates in either decision.
 
 ## First hidden import
 
@@ -55,10 +54,10 @@ runs its deterministic replay contract.
 
 Local and GitHub checks discover those same direct `src/Dockerfile` and
 `generator/Dockerfile` paths automatically. Adding a package does not require editing
-a CI matrix, but every new service still needs a named functional handler in
-`scripts/test-container-images.py`. The handler key is the normalized
-`<mode>-<category>-<slug>` image tag, so repeated slugs in different categories stay
-isolated.
+a CI matrix. The GitHub job builds every emitted context and requires each service
+image to declare and pass its Docker `HEALTHCHECK`; one-shot generators are build-only.
+That health gate is an availability check, so exercise player-visible protocol and
+checker behavior separately in hidden staging.
 
 This source-build pattern requires the Docker builder and runtime owner to share the
 same daemon. Kubernetes and deployments with independent node-local daemons need

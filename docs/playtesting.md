@@ -8,22 +8,16 @@ understand and solve the challenge using only what the event actually gives them
 From the repository root:
 
 ```sh
-make test
+make validate
+make matrix
 ```
 
-When container or generator code changed, also run:
-
-```sh
-make test-container-images
-```
-
-This builds the images, waits for Docker health, and exercises each service's normal
-protocol. Fix availability, checker, and build failures before asking someone to blind-solve.
-Do not use the intended solver as the playtest; that tests mechanics, not clues.
-The build list is discovered from package Dockerfiles. If a renamed or new service
-has no matching normalized mode/category/slug case in
-`scripts/test-container-images.py`, validation fails instead of skipping its runtime
-check.
+When container or generator code changed, require the dynamic GitHub container job
+to pass (or reproduce its Docker builds locally). It builds every context emitted by
+rsctf and waits for each service's Docker `HEALTHCHECK`. That gate proves startup and
+declared health only, so exercise the real player-visible protocol and checker in
+hidden staging before the blind solve. Do not use the intended solver as the
+playtest; that tests mechanics, not clues.
 
 ## Declare the player contract
 

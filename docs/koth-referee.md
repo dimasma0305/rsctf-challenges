@@ -122,16 +122,18 @@ rehearsal. The wire contract caps one snapshot at 64 waves and 2,000 total
 team-wave rows. Treat the last published window end as the event's scoring
 cutoff and stop opening waves that cannot finalize before it.
 
-## Regression test
+## Verification
 
-From the challenge repository root:
+First validate the repository contract with the matching platform binary:
 
 ```sh
-python3 scripts/test-koth-observer.py
+rsctf challenge check --deny-warnings .
 ```
 
-The test verifies HMAC scope, an initial empty wave ledger, finalized objective
-budgets, the unique-leader/no-Crown-on-tie rule, raw-token absence, stable
-objective identity, unknown-hash filtering, deduplication, persistent restart,
-round fencing, feed-gap failure, redirect refusal, and HTTPS-by-default URL
-checks.
+That command checks the package and manifest statically; it does not execute the
+referee. In hidden staging, run `observer/observer.py --once` with a dedicated test
+identity and verify HMAC scope, the initial empty ledger, finalized objective budgets,
+the unique-leader/no-Crown-on-tie rule, raw-token absence, stable objective identity,
+unknown-hash filtering, deduplication, restart persistence, round fencing, feed-gap
+failure, redirect refusal, and HTTPS-by-default URL checks. Retain redacted request,
+response, and state evidence for the exact candidate revision.

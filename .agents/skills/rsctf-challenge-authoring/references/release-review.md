@@ -11,9 +11,13 @@ solver or from an earlier revision.
 
 ## Required evidence
 
-- `make test` passes; applicable container/generator builds pass on the target
-  architecture. The generated matrix contains every direct package Dockerfile, and
-  every service has a functional smoke handler rather than build-only coverage.
+- `make validate` and `make matrix` pass with the official rsctf binary matching the
+  target release. Applicable container/generator builds pass on the target
+  architecture, the generated matrix contains every direct package Dockerfile, and
+  every service declares and passes its Docker `HEALTHCHECK`.
+- Docker health is only an availability gate. The player-visible protocol, checker
+  verdicts, flag delivery/rotation, and generator replay contract have independent
+  hidden-staging evidence where applicable.
 - Player artifacts contain exactly the declared delivery and no real flag, solution,
   hidden source, repository history, organizer material, or credentials.
 - Service behavior was exercised through the player-visible route with realistic

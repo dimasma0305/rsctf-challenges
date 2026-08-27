@@ -16,25 +16,22 @@ From the repository root:
 make help
 make list
 make validate
-make validate-platform
-make test
+make matrix
 ```
 
 Then follow the [playtest guide](docs/playtesting.md) before asking an organizer to
-import or enable the challenge. `make test` proves the fixtures still work; it does
-not prove that a challenge is fair or discoverable for a new player. The
-`validate-platform` uses rsctf's own CLI, so install the checker version that matches
-the rsctf release you will import into. CI imports `dimasma0305/rsctf` as a reusable
-action; challenge repositories do not copy or maintain a platform-validator wrapper.
+import or enable the challenge. Both commands use the official `rsctf` binary, so
+install the version that matches the release you will import into. CI imports
+`dimasma0305/rsctf` as a reusable action; this repository contains no validation or
+container-discovery scripts of its own.
 
 To make a challenge:
 
 1. Read [Getting started](docs/getting-started.md).
 2. Copy the closest package under `challenges/`.
 3. Change its slug, `challenge.yaml`, player files, source, and checker as needed.
-4. Run `make validate-platform` and `make test`; run `make test-container-images`
-   when a service container changed, or `make build-containers` for generator-only
-   changes. Container jobs are discovered from package Dockerfiles automatically.
+4. Run `make validate` and `make matrix`. CI builds every context emitted by rsctf
+   and waits for each service image's Docker `HEALTHCHECK` to pass.
 5. Give a fresh player only the declared service and/or handout contract.
 6. Complete the [release checklist](docs/release-checklist.md).
 
@@ -52,7 +49,6 @@ To make a challenge:
 │   ├── Jeopardy/<category>/<slug>/
 │   └── Koth/<category>/<slug>/
 ├── docs/                            # human documentation and checklists
-├── scripts/                         # package-free validation/test helpers
 └── README.md                        # this short entry point
 ```
 

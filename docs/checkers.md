@@ -333,26 +333,24 @@ start until every enabled engine challenge has a prepared checker.
 ## Local workflow
 
 Each example checker directory contains only the files copied by Repository
-Bindings: `lib.py`, `run.py`, and an optional pinned `requirements.txt`. Run the
-repository-wide test from the root; it starts all four services on loopback and
-exercises OK, Mumble, Offline, and InternalError behavior:
+Bindings: `lib.py`, `run.py`, and an optional pinned `requirements.txt`. Validate
+their static layout, dependency pins, and manifest integration from the repository
+root:
 
 ```sh
-node scripts/validate.mjs
-python3 -m compileall -q challenges scripts
+rsctf challenge check --deny-warnings .
+```
+
+The repository intentionally ships no independent validator or checker-test harness.
+For a focused functional check, create a disposable virtual environment, install the
+package's exact requirements when present, start the service with a redacted local
+flag, and run `checker/run.py` with the documented environment:
+
+```sh
 python3 -m venv /tmp/rsctf-example-checkers
 /tmp/rsctf-example-checkers/bin/python -m pip install \
   --disable-pip-version-check --no-input --only-binary=:all: \
-  -- pwntools==4.15.0 httpx==0.28.1
-/tmp/rsctf-example-checkers/bin/python scripts/test-checkers.py
-python3 scripts/test-koth-observer.py
-```
-
-For a focused manual check, change into one package directory, start `src/app.py`
-with a redacted local flag where A&D requires one, and run `checker/run.py` with the
-documented environment:
-
-```sh
+  -- -r challenges/AD/Pwn/attack-defense-service/checker/requirements.txt
 cd challenges/AD/Pwn/attack-defense-service
 printf '%s\n' 'rsctf{local_test}' >/tmp/rsctf-managed-demo-flag
 RSCTF_FLAG_FILE=/tmp/rsctf-managed-demo-flag python3 src/app.py
@@ -376,7 +374,8 @@ Use the same environment for the self-hosted A&D package. For KotH, set
 `RSCTF_TEAM_ID=0`, omit `RSCTF_FLAG`, and use `python3 checker/run.py`; the KotH
 examples need no third-party checker dependency.
 
-CI creates the same isolated environment, performs these checks, exercises all
-four checker verdict classes, verifies the observer's signed wire format, builds
-every bundled service context, waits for Docker health, and runs a functional
-protocol smoke test against each built service image.
+CI uses the matrix emitted by rsctf to build every bundled context and waits for each
+service's Docker `HEALTHCHECK`. It does not exercise all checker verdict classes or
+prove the flag-delivery path. Before release, test OK, Mumble, Offline, and
+InternalError behavior through the intended backend during the hidden staging and
+multi-team rehearsal described in the release checklist.

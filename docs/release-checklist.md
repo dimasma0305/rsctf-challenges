@@ -19,20 +19,16 @@ checked box means the behavior was observed on the exact revision being proposed
 
 ## Functional verification
 
-- [ ] `make validate-platform` passes with the official checker matching the target
-      rsctf release.
+- [ ] `make validate` passes with the official `rsctf` binary matching the target
+      release.
+- [ ] `make matrix` succeeds and lists every expected build context.
 - [ ] GitHub Actions passes the imported `dimasma0305/rsctf` step, pinned to the
       target rsctf release (or to an action commit plus matching exact image digest).
-- [ ] `make test` passes.
-- [ ] `make test-container-images` passes when a service build context changed;
-      `make build-containers` passes for generator-only changes.
 - [ ] Every direct `src/Dockerfile` and `generator/Dockerfile` appears in the
       dynamically generated matrix; no package is maintained in a hand-written CI list.
-- [ ] Every discovered service's normalized mode/category/slug tag has an independent
-      functional handler in `scripts/test-container-images.py`; generators remain
-      explicitly build-only.
 - [ ] Every long-running service image declares a Docker `HEALTHCHECK`, reaches
-      `healthy`, and then passes an independent protocol-level smoke request.
+      `healthy` in the dynamic CI job, and then passes an independent
+      player-visible protocol check in hidden staging.
 - [ ] The service was exercised through the same protocol and exposed port players
       will use, including failure and timeout behavior.
 - [ ] A&D checks retrieve the current rotating flag through player-visible behavior.

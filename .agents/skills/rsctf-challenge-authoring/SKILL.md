@@ -47,14 +47,13 @@ references merely because they exist.
    `observer/`.
 5. Add or update focused regression coverage for contract changes. Keep inputs
    bounded, dependencies pinned, and secrets absent from source and evidence.
-6. Run focused checks, `make test`, and `make validate-platform`. Confirm CI imports
-   the maintained `dimasma0305/rsctf` action; do not vendor its wrapper into the
-   challenge repository. The repository convention validator is
-   additional coverage, not a replacement. When runtime or generator inputs
-   changed, run `make test-container-images` so built services must
-   become Docker-healthy and pass their player-visible protocol smoke test. Container
-   contexts are discovered automatically; add a functional smoke handler for every
-   new or renamed service instead of editing CI or Makefile image lists.
+6. Run focused checks, `make validate`, and `make matrix`. Both commands must use the
+   matching official `rsctf` binary; do not add a repository-local validator,
+   discovery helper, or wrapper. Confirm CI imports the maintained
+   `dimasma0305/rsctf` action, builds every emitted context, and waits for each
+   service image's Docker `HEALTHCHECK`. When runtime or generator inputs change,
+   require that dynamic container job and separately exercise player-visible
+   protocol, checker verdicts, and flag behavior in hidden staging.
 7. For readiness claims, require a player-equivalent blind run and hidden staging
    import; a solver run or green CI job alone is insufficient.
 

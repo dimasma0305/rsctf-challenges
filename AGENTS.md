@@ -27,13 +27,12 @@ author documentation and remain beside the manifest.
 - Keep container build input in the package's `src/` directory. Omit
   `containerImage` when demonstrating trusted Repository Bindings source builds.
 - Do not hand-edit container matrices. Direct package `src/Dockerfile` and
-  `generator/Dockerfile` paths are discovered by `scripts/container-images.py`.
-  Every service's normalized mode/category/slug tag needs a functional case in
-  `scripts/test-container-images.py`; discovery must fail when coverage is missing.
+  `generator/Dockerfile` paths are discovered by `rsctf challenge matrix`. Every
+  long-running service image must declare a meaningful Docker `HEALTHCHECK`; CI
+  builds the dynamic matrix and fails unless each service becomes healthy.
 - Keep GitHub manifest validation on rsctf's own `rsctf challenge check` command.
   Import the maintained `dimasma0305/rsctf` action; do not copy a platform-validator
-  wrapper into this repository or replace it with the local JavaScript convention
-  validator.
+  wrapper, discovery helper, or repository-local checker into this repository.
 - Keep A&D/KotH checker transport and assertions in `checker/run.py`; keep the shared
   platform runner in `checker/lib.py`. Copy a complete checker directory.
 - Keep deterministic generator code in `generator/` beside its manifest.
@@ -61,13 +60,15 @@ not use mocked browser states or hand-written terminal output as evidence.
 Run focused checks while editing, then from the repository root run:
 
 ```sh
-make test
-make validate-platform
-make test-container-images
+make validate
+make matrix
 ```
 
 Set `RSCTF` to the matching official binary when it is not on `PATH`.
-Container lifecycle checks are required when `src/`, a Dockerfile, or `generator/` changes.
+When `src/`, a Dockerfile, or `generator/` changes, require the dynamic GitHub
+container job (or an equivalent local build) to pass. Docker health proves service
+availability, not checker correctness or solvability; verify those through the
+player-equivalent and hidden-staging gates below.
 Documentation-only work may skip Docker builds, but link and command examples must
 still be checked. Import/release work is incomplete until the hidden staging scan,
 normal-player smoke test, and applicable multi-team A&D/KotH rehearsal pass.
