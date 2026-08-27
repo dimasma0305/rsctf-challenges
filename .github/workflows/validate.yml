@@ -17,74 +17,29 @@ jobs:
   manifests:
     name: Validate manifests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    outputs:
+      container_matrix: ${{ steps.rsctf.outputs.container_matrix }}
+      container_count: ${{ steps.rsctf.outputs.container_count }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: |
-            AD/Pwn/attack-defense-service/checker/requirements.txt
-            AD/Web/self-hosted-service/checker/requirements.txt
-
-      - name: Validate event and challenge manifests
-        run: node scripts/validate.mjs
-
-      - name: Compile Python examples
-        run: python3 -m compileall -q AD Koth Jeopardy
-
-      - name: Install pinned checker wheels
-        run: |
-          python3 -m venv .checker-venv
-          .checker-venv/bin/python -m pip install \
-            --disable-pip-version-check \
-            --no-input \
-            --only-binary=:all: \
-            -- \
-            pwntools==4.15.0 \
-            httpx==0.28.1
-
-      - name: Exercise checker verdicts
-        run: .checker-venv/bin/python scripts/test-checkers.py
-
-      - name: Exercise signed KotH observer
-        run: python3 scripts/test-koth-observer.py
-
-      - name: Exercise deterministic provenance generator
-        run: python3 scripts/test-provenance.py
-
-      - name: Exercise provenance automation clients
-        run: node scripts/test-provenance-automation.mjs
+      - name: Validate manifests with rsctf
+        id: rsctf
+        uses: dimasma0305/rsctf@main
 
   containers:
     name: Build ${{ matrix.name }}
     needs: manifests
+    if: needs.manifests.outputs.container_count != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: static-flag-service
-            context: Jeopardy/Web/static-flag-service/src
-          - name: dynamic-flag-service
-            context: Jeopardy/Web/dynamic-flag-service/src
-          - name: attack-defense-service
-            context: AD/Pwn/attack-defense-service/src
-          - name: self-hosted-service
-            context: AD/Web/self-hosted-service/src
-          - name: king-of-the-hill
-            context: Koth/Pwn/king-of-the-hill/src
-          - name: api-observed-hill
-            context: Koth/Web/api-observed-hill/src
-          - name: provenance-generator
-            context: Jeopardy/Misc/deterministic-variant/generator
+      matrix: ${{ fromJSON(needs.manifests.outputs.container_matrix) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -101,5 +56,51 @@ jobs:
           platforms: linux/amd64
           load: true
           push: false
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          tags: rsctf-example/${{ matrix.tag }}:ci
+          cache-from: type=gha,scope=${{ matrix.tag }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.tag }}
+
+      - name: Verify Docker health
+        if: matrix.kind == 'service'
+        shell: bash
+        env:
+          IMAGE: rsctf-example/${{ matrix.tag }}:ci
+        run: |
+          set -euo pipefail
+          if [[ "$(docker image inspect "$IMAGE" --format '{{if .Config.Healthcheck}}present{{else}}missing{{end}}')" != present ]]; then
+            echo "::error::Service image $IMAGE does not declare a Docker HEALTHCHECK."
+            exit 1
+          fi
+
+          container_id="$(docker run \
+            --detach \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges=true \
+            --pids-limit 128 \
+            --memory 256m \
+            "$IMAGE")"
+          cleanup() {
+            docker rm --force "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for _ in {1..60}; do
+            state="$(docker inspect \
+              --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
+              "$container_id")"
+            if [[ "$state" == 'running healthy' ]]; then
+              exit 0
+            fi
+            if [[ "$state" == exited* || "$state" == dead* || "$state" == *' unhealthy' || "$state" == *' missing' ]]; then
+              docker logs "$container_id"
+              echo "::error::Service image $IMAGE failed its Docker health gate: $state"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker logs "$container_id"
+          echo "::error::Service image $IMAGE did not become healthy within 60 seconds."
+          exit 1

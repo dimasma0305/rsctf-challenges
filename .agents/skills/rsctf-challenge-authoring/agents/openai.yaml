@@ -1,0 +1,4 @@
+interface:
+  display_name: "rsctf Challenge Authoring"
+  short_description: "Build and playtest rsctf challenge repositories"
+  default_prompt: "Use $rsctf-challenge-authoring to create or review an rsctf challenge package."
