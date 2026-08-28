@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+import email.utils
+from enum import Enum
 from fractions import Fraction
 import hashlib
 import hmac
@@ -12,9 +15,10 @@ import json
 import math
 import os
 from pathlib import Path
+import random
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,6 +33,8 @@ WAVE_DURATION_MS = 30_000
 WAVE_FINALIZATION_LAG_MS = 2_000
 USER_AGENT = "rsctf-leaderboard-koth-example/4"
 OBJECTIVE_IDS = ("proof-strength", "solve-speed")
+MAX_RETRY_DELAY_SECONDS = 300.0
+MAX_BACKOFF_SECONDS = 30.0
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -43,9 +49,21 @@ _DIRECT_OPENER = urllib.request.build_opener(
 
 
 class RefereeHttpError(RuntimeError):
-    def __init__(self, status: int, detail: str):
+    def __init__(
+        self,
+        status: int,
+        detail: str,
+        retry_after_seconds: float | None = None,
+    ):
         super().__init__(f"HTTP {status}: {detail}")
         self.status = status
+        self.detail = detail
+        self.retry_after_seconds = retry_after_seconds
+
+
+class FailureDisposition(Enum):
+    RETRYABLE = "retryable"
+    PERMANENT = "permanent"
 
 
 @dataclass(frozen=True)
@@ -57,7 +75,7 @@ class Config:
     hill_url: str
     poll_seconds: float
     timeout_seconds: float
-    state_file: Path | None = None
+    state_file: Path
 
     @property
     def api_base(self) -> str:
@@ -157,19 +175,34 @@ def _normalize_url(name: str, value: str, allow_http: bool) -> str:
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
 
+def _managed_state_file(game_id: int, challenge_id: int) -> Path:
+    configured = os.environ.get("RSCTF_KOTH_STATE_FILE", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+
+    state_directory = os.environ.get("STATE_DIRECTORY", "").split(":", 1)[0].strip()
+    if state_directory:
+        root = Path(state_directory)
+    else:
+        xdg_state = os.environ.get("XDG_STATE_HOME", "").strip()
+        root = Path(xdg_state) if xdg_state else Path.home() / ".local" / "state"
+    return root / "rsctf-koth-observer" / f"game-{game_id}-challenge-{challenge_id}.json"
+
+
 def load_config(allow_http: bool) -> Config:
     secret = _required_environment("RSCTF_KOTH_OBSERVER_SECRET")
     if secret != secret.strip() or not secret.startswith("koth_api_") or len(secret) < 32:
         raise ValueError("RSCTF_KOTH_OBSERVER_SECRET is not a valid copied referee secret")
-    state_path = os.environ.get("RSCTF_KOTH_STATE_FILE", "").strip()
+    game_id = _positive_integer("RSCTF_GAME_ID")
+    challenge_id = _positive_integer("RSCTF_CHALLENGE_ID")
     return Config(
         origin=_normalize_url(
             "RSCTF_ORIGIN",
             _required_environment("RSCTF_ORIGIN"),
             allow_http,
         ),
-        game_id=_positive_integer("RSCTF_GAME_ID"),
-        challenge_id=_positive_integer("RSCTF_CHALLENGE_ID"),
+        game_id=game_id,
+        challenge_id=challenge_id,
         secret=secret,
         hill_url=_normalize_url(
             "RSCTF_KOTH_HILL_URL",
@@ -178,8 +211,31 @@ def load_config(allow_http: bool) -> Config:
         ),
         poll_seconds=_bounded_number("RSCTF_KOTH_POLL_SECONDS", "5", 1, 300),
         timeout_seconds=_bounded_number("RSCTF_KOTH_TIMEOUT_SECONDS", "5", 1, 60),
-        state_file=Path(state_path) if state_path else None,
+        state_file=_managed_state_file(game_id, challenge_id),
     )
+
+
+def _retry_after_seconds(
+    headers: object,
+    now: datetime | None = None,
+) -> float | None:
+    getter = getattr(headers, "get", None)
+    raw = getter("Retry-After") if callable(getter) else None
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    try:
+        seconds = int(value)
+    except ValueError:
+        try:
+            retry_at = email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        return max(0.0, (retry_at - current).total_seconds())
+    return float(seconds) if seconds >= 0 else None
 
 
 def _request_json(request: urllib.request.Request, timeout: float) -> dict[str, Any]:
@@ -189,7 +245,11 @@ def _request_json(request: urllib.request.Request, timeout: float) -> dict[str, 
     except urllib.error.HTTPError as error:
         raw_detail = error.read(2_048).decode("utf-8", errors="replace").strip()
         detail = raw_detail.encode("unicode_escape").decode("ascii")[:512]
-        raise RefereeHttpError(error.code, detail or "request rejected") from error
+        raise RefereeHttpError(
+            error.code,
+            detail or "request rejected",
+            _retry_after_seconds(error.headers),
+        ) from error
     if len(body) > MAX_RESPONSE_BYTES:
         raise RuntimeError("remote JSON response exceeded the 2 MiB limit")
     try:
@@ -598,7 +658,7 @@ class RefereeClient:
 
     def _load_state(self) -> None:
         path = self.config.state_file
-        if path is None or not path.exists():
+        if not path.exists():
             return
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -661,8 +721,6 @@ class RefereeClient:
 
     def _save_state(self) -> None:
         path = self.config.state_file
-        if path is None:
-            return
         context = None
         if self.context is not None:
             context = {
@@ -711,8 +769,40 @@ class RefereeClient:
                 pass
 
 
-def _retry_delay(failures: int, poll_seconds: float) -> float:
-    return min(30.0, max(1.0, poll_seconds) * (2 ** min(failures - 1, 5)))
+def _failure_disposition(error: BaseException) -> FailureDisposition:
+    if isinstance(error, RefereeHttpError):
+        if error.status in {408, 425, 429} or error.status >= 500:
+            return FailureDisposition.RETRYABLE
+        if error.status == 409:
+            detail = error.detail.lower()
+            retryable_conflicts = (
+                "context changed",
+                "context is not active",
+                "still being committed",
+            )
+            if any(marker in detail for marker in retryable_conflicts):
+                return FailureDisposition.RETRYABLE
+        return FailureDisposition.PERMANENT
+    if isinstance(error, (urllib.error.URLError, OSError)):
+        return FailureDisposition.RETRYABLE
+    # Invalid schemas, malformed evidence, and failed acknowledgements require
+    # operator intervention. Retrying those forever only hides a broken trust contract.
+    return FailureDisposition.PERMANENT
+
+
+def _retry_delay(
+    failures: int,
+    poll_seconds: float,
+    retry_after_seconds: float | None = None,
+    random_value: Callable[[], float] = random.random,
+) -> float:
+    ceiling = min(
+        MAX_BACKOFF_SECONDS,
+        max(1.0, poll_seconds) * (2 ** min(max(0, failures - 1), 5)),
+    )
+    jitter = min(1.0, max(0.0, float(random_value()))) * ceiling
+    requested = max(0.0, retry_after_seconds or 0.0)
+    return min(MAX_RETRY_DELAY_SECONDS, max(1.0, jitter, requested))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -744,11 +834,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             time.sleep(config.poll_seconds)
         except (RefereeHttpError, urllib.error.URLError, OSError, RuntimeError) as error:
-            failures += 1
+            disposition = _failure_disposition(error)
             print(f"referee error: {error}", file=sys.stderr, flush=True)
-            if arguments.once:
+            if arguments.once or disposition is FailureDisposition.PERMANENT:
                 return 1
-            time.sleep(_retry_delay(failures, config.poll_seconds))
+            failures += 1
+            retry_after = error.retry_after_seconds if isinstance(error, RefereeHttpError) else None
+            time.sleep(_retry_delay(failures, config.poll_seconds, retry_after))
 
 
 if __name__ == "__main__":
