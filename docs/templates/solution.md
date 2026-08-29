@@ -52,7 +52,7 @@ Run the tracked [`solve.py`](solve.py) with explicit player inputs:
 
 ```console
 $ python3 solution/solve.py <arguments>
-<genuine trimmed output with the flag redacted as rsctf{...}>
+<genuine trimmed output with the flag redacted using its mode-specific prefix>
 ```
 
 List exact dependency pins only when the standard library is insufficient.

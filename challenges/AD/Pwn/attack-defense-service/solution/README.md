@@ -27,7 +27,7 @@ rotating flag without authentication.
 
 1. Connect to the issued TCP target.
 2. Send the documented command `GET_FLAG` followed by a newline.
-3. Read one response line and submit the returned `rsctf{...}` value.
+3. Read one response line and submit the returned `flag{...}` value.
 
 The line itself is the gained capability. No additional exploit stage exists in this
 educational orchestration example.
@@ -44,7 +44,7 @@ rotation.
 
 ```console
 $ python3 solution/solve.py --host 127.0.0.1 --port 8080
-rsctf{...}
+flag{...}
 ```
 
 ## Evidence

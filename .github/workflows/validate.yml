@@ -104,3 +104,55 @@ jobs:
           docker logs "$container_id"
           echo "::error::Service image $IMAGE did not become healthy within 60 seconds."
           exit 1
+
+      - name: Verify managed A&D flag rotation
+        if: matrix.context == 'challenges/AD/Pwn/attack-defense-service/src'
+        shell: bash
+        env:
+          IMAGE: rsctf-example/${{ matrix.tag }}:ci
+        run: |
+          set -euo pipefail
+          container_id="$(docker run \
+            --detach \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges=true \
+            --pids-limit 128 \
+            --memory 256m \
+            "$IMAGE")"
+          cleanup() {
+            docker rm --force "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for _ in {1..60}; do
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$container_id")"
+            if [[ "$health" == healthy ]]; then
+              break
+            fi
+            if [[ "$health" == unhealthy || "$health" == missing ]]; then
+              echo "::error::Managed A&D image failed before flag rotation: $health"
+              exit 1
+            fi
+            sleep 1
+          done
+          if [[ "$(docker inspect --format '{{.State.Health.Status}}' "$container_id")" != healthy ]]; then
+            echo "::error::Managed A&D image did not become healthy before flag rotation."
+            exit 1
+          fi
+
+          rotate_and_read() {
+            local expected="$1"
+            local delivered
+            local observed
+            delivered="$(docker exec "$container_id" sh -c \
+              'umask 022 && printf '\''%s\n'\'' "$1" > "${RSCTF_FLAG_FILE:-/flag}" && cat "${RSCTF_FLAG_FILE:-/flag}"' \
+              rsctf-flag "$expected")"
+            [[ "$delivered" == "$expected" ]]
+            observed="$(docker exec "$container_id" python -c \
+              'import socket; s=socket.create_connection(("127.0.0.1", 8080), 2); s.sendall(b"GET_FLAG\n"); print(s.makefile("rb").readline(513).decode().strip())')"
+            [[ "$observed" == "$expected" ]]
+          }
+
+          rotate_and_read 'flag{11111111111111111111111111111111}'
+          rotate_and_read 'flag{22222222222222222222222222222222}'

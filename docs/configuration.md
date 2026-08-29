@@ -75,7 +75,7 @@ See [`.gzevent`](../.gzevent) for a safe staging configuration.
 | `submissionLimit` | `0` | `0` means no explicit attempt limit |
 | `hints` | absent | String list |
 | `flags` | absent | Static flag rows for attachment/container challenges; imported `DynamicAttachment` rows are not yet assigned per team; do not use for A&D or KotH |
-| `flagTemplate` | absent | Flag generator for `DynamicContainer` and A&D; use `[TEAM_HASH]` and, when rotation is needed, `[GUID]` |
+| `flagTemplate` | absent | Flag generator for `DynamicContainer`; do not set it for A&D, whose engine issues fixed canonical round flags |
 | `provide` | `dist/` convention | Attachment file or directory relative to the manifest |
 | `disableBloodBonus` | `false` | Disable first-solve bonuses for this challenge |
 | `ignore` | `false` | `true` prevents creation and is rejected by this catalog validator |
@@ -138,7 +138,7 @@ is intentionally part of the public challenge contract.
 | Key | Behavior |
 | --- | --- |
 | `containerImage` | Omit to build `src/Dockerfile` (then package-root `Dockerfile`); a concrete reference switches to registry pull/pin behavior |
-| `flagTemplate` | Container-local override for the top-level template |
+| `flagTemplate` | Container-local `DynamicContainer` override; omit it for A&D and KotH |
 | `memoryLimit` | Memory limit in MiB; defaults to 64 for Jeopardy/KotH and 256 for managed A&D |
 | `cpuCount` | Backend-specific CPU limit; use `1` for the portable examples |
 | `storageLimit` | Persisted, but not currently enforced by the runtime |
@@ -186,6 +186,10 @@ its standard-library HTTP implementation and needs no requirements. Dependency
 resolution requires PyPI access during a trusted repository scan or admin
 approval. Review the repository commit and package pins before preparing them.
 See [`checkers.md`](checkers.md).
+
+A&D flags are not authored in the manifest. The engine creates one canonical
+`flag{<32 URL-safe characters>}` value per service and round, delivers it through the
+managed or BYOC flag-file path, and supplies the same value to the checker.
 
 The examples register focused checks whose execution order is cryptographically
 and independently shuffled for each checker process. A fresh shuffle may repeat

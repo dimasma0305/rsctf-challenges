@@ -6,7 +6,7 @@ import re
 import socket
 
 
-FLAG = re.compile(r"rsctf\{[^{}\r\n]{1,256}\}")
+FLAG = re.compile(r"flag\{[A-Za-z0-9_-]{32}\}")
 
 
 def solve(host, port):
@@ -18,7 +18,7 @@ def solve(host, port):
 
     text = response.decode("utf-8").strip()
     if len(response) > 512 or not FLAG.fullmatch(text):
-        raise ValueError("service did not return an rsctf flag")
+        raise ValueError("service did not return a canonical A&D flag")
     return text
 
 

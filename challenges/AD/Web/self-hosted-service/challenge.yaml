@@ -14,8 +14,8 @@ type: AttackDefense
 category: Web
 disableBloodBonus: true
 
-# The engine expands both placeholders for each team and round.
-flagTemplate: "rsctf{byoc_[TEAM_HASH]_[GUID]}"
+# A&D flags use rsctf's fixed per-round `flag{<32 URL-safe characters>}`
+# grammar. The BYOC relay writes that value to /shared/flag.
 
 container:
   # containerImage is intentionally omitted. Repository Bindings builds ./src,
