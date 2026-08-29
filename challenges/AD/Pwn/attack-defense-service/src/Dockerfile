@@ -5,10 +5,10 @@ FROM python:3.12-alpine
 WORKDIR /app
 COPY --chown=nobody:nogroup app.py /app/app.py
 
-# rsctf refreshes this file every round with `docker exec`. Keep it outside the
-# image layer and writable by the non-root runtime user.
-RUN mkdir -p /run/rsctf && chown nobody:nogroup /run/rsctf
-ENV RSCTF_FLAG_FILE=/run/rsctf/flag
+# rsctf refreshes /flag every round with `docker exec` as the configured
+# container user. Seed the file with the ownership required for later writes.
+RUN touch /flag && chown nobody:nogroup /flag
+ENV RSCTF_FLAG_FILE=/flag
 
 USER nobody
 EXPOSE 8080

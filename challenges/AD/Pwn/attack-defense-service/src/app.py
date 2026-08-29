@@ -10,7 +10,7 @@ from pathlib import Path
 import socketserver
 
 
-FLAG_FILE = Path(os.environ.get("RSCTF_FLAG_FILE", "/run/rsctf/flag"))
+FLAG_FILE = Path(os.environ.get("RSCTF_FLAG_FILE", "/flag"))
 
 
 def read_current_flag() -> str:
