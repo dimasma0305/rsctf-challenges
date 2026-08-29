@@ -19,7 +19,8 @@ Keep the writeup short enough to follow in one sitting. Use these headings in or
   hypothesis, exact action, visible result, and capability gained.
 - Do not use author source or solver constants to justify what a player tries earlier. Put
   author-only implementation detail under `Why it works` and label it clearly.
-- Copy commands exactly. Use genuine trimmed output and redact flags as `rsctf{...}`.
+- Copy commands exactly. Use genuine trimmed output and preserve the mode's prefix when
+  redacting: `rsctf{...}` for normal flags and `flag{...}` for A&D.
 - Link `solve.py`; do not paste a shortened second solver or repeat its orchestration in
   prose.
 - Remove generic introductions, tool tutorials, decorative diagrams, and claims unsupported

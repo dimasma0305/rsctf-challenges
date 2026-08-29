@@ -154,5 +154,5 @@ jobs:
             [[ "$observed" == "$expected" ]]
           }
 
-          rotate_and_read 'rsctf{ci_round_one}'
-          rotate_and_read 'rsctf{ci_round_two}'
+          rotate_and_read 'flag{11111111111111111111111111111111}'
+          rotate_and_read 'flag{22222222222222222222222222222222}'

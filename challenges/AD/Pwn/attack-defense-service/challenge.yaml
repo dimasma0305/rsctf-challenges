@@ -15,9 +15,8 @@ category: Pwn
 # A&D score comes from attacks, defense, and SLA rather than jeopardy decay.
 disableBloodBonus: true
 
-# A&D flags rotate by round. TEAM_HASH is stable for one team/challenge, while
-# GUID supplies fresh entropy each time the engine generates a flag.
-flagTemplate: "rsctf{managed_[TEAM_HASH]_[GUID]}"
+# A&D flags use rsctf's fixed per-round `flag{<32 URL-safe characters>}`
+# grammar. Unlike DynamicContainer, this mode does not accept a flag template.
 
 container:
   # containerImage is intentionally omitted. Repository Bindings auto-builds

@@ -28,7 +28,7 @@ flag at the public `/secret` route.
 
 1. Request `/` and read the route named by the service banner.
 2. Request `/secret` through the opponent-facing service endpoint.
-3. Submit the returned current-round `rsctf{...}` flag.
+3. Submit the returned current-round `flag{...}` value.
 
 ## Why it works
 
@@ -39,7 +39,7 @@ reads the file per request so the BYOC agent can rotate flags without restarting
 
 ```console
 $ python3 solution/solve.py --url http://127.0.0.1:8080
-rsctf{...}
+flag{...}
 ```
 
 The solver is one bounded HTTP request and has no third-party dependency.

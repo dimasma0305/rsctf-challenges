@@ -352,7 +352,7 @@ python3 -m venv /tmp/rsctf-example-checkers
   --disable-pip-version-check --no-input --only-binary=:all: \
   -- -r challenges/AD/Pwn/attack-defense-service/checker/requirements.txt
 cd challenges/AD/Pwn/attack-defense-service
-printf '%s\n' 'rsctf{local_test}' >/tmp/rsctf-managed-demo-flag
+printf '%s\n' 'flag{00000000000000000000000000000000}' >/tmp/rsctf-managed-demo-flag
 RSCTF_FLAG_FILE=/tmp/rsctf-managed-demo-flag python3 src/app.py
 ```
 
@@ -365,7 +365,7 @@ RSCTF_TARGET_PORT=8080 \
 RSCTF_ROUND=1 \
 RSCTF_TEAM_ID=1 \
 RSCTF_CHALLENGE_ID=1 \
-RSCTF_FLAG='rsctf{local_test}' \
+RSCTF_FLAG='flag{00000000000000000000000000000000}' \
 /tmp/rsctf-example-checkers/bin/python checker/run.py
 echo $?
 ```

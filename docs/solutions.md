@@ -52,8 +52,9 @@ first. Keep each exploit stage chronological:
 
 Put author-source explanations under `Why it works`. Do not use hidden source, a solver
 constant, or organizer knowledge to justify an earlier player decision. Use exact commands,
-trim long output, and redact the flag as `rsctf{...}`. Link the complete `solve.py` instead of
-pasting a shorter second implementation into the writeup.
+trim long output, and preserve the mode's prefix when redacting: `rsctf{...}` for normal
+flags and `flag{...}` for A&D. Link the complete `solve.py` instead of pasting a shorter
+second implementation into the writeup.
 
 When a package is intentionally illustrative, such as the current `DynamicAttachment`
 example, say that it is unplayable and show the expected nonzero solver result. Never invent a

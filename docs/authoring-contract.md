@@ -215,17 +215,18 @@ the solver.
   permanently disclosed and must be replaced outside this public catalog for a real event.
 - Dynamic containers read the rsctf-injected `RSCTF_FLAG` according to the service contract.
 - Managed A&D reads `RSCTF_FLAG_FILE` at request time. BYOC uses the relay-managed shared
-  flag file. The checker receives the matching expected value.
+  flag file. The engine issues a fixed `flag{<32 URL-safe characters>}` value each round,
+  and the checker receives that exact value.
 - Deterministic variants return a server-side flag in their generated manifest. The flag is
   not a player attachment.
 - KotH uses the selected marker or signed API capability source and receives no checker
   flag.
 
 Do not use a real event flag in source tests, Docker layers, health checks, logs, screenshots,
-solution evidence, or CI. Use unmistakable local values such as `rsctf{local_test}` and
-redact retained output to `rsctf{...}`. Store observer secrets, receipt issuer tokens, admin
-JWTs, repository tokens, SSH keys, and production endpoints only in the deployment's
-restricted secret/configuration stores.
+solution evidence, or CI. Use unmistakable local values that match the mode's grammar. Redact
+normal flags to `rsctf{...}` and A&D flags to `flag{...}`. Store observer secrets, receipt
+issuer tokens, admin JWTs, repository tokens, SSH keys, and production endpoints only in the
+deployment's restricted secret/configuration stores.
 
 Review Git history before release. Replacing a leaked secret in the latest tree requires
 rotation; rewriting or deleting a file does not make the old value safe again.
@@ -258,8 +259,9 @@ remove inapplicable keys. Do not invent metadata aliases or CI-only fields.
 - Omit `minScoreRate`, `difficulty`, and `submissionLimit` to inherit rsctf's current
   defaults. Add them only for a reviewed Jeopardy scoring override. They do not apply to
   A&D or KotH scoring.
-- Use `flags` only for supported Jeopardy static flag rows. Use `flagTemplate` for
-  dynamic containers and A&D. KotH uses its control-source contract instead of flags.
+- Use `flags` only for supported Jeopardy static flag rows. Use `flagTemplate` only for
+  dynamic containers. A&D uses its fixed per-round grammar, while KotH uses its
+  control-source contract instead of flags.
 - Use a relative `provide` path and keep the target inside the package. This repository
   names `dist` explicitly when a handout exists.
 - Omit `containerImage` when Repository Bindings should build the adjacent

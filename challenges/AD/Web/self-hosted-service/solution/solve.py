@@ -6,7 +6,7 @@ import re
 import urllib.request
 
 
-FLAG = re.compile(r"rsctf\{[^{}\r\n]{1,256}\}")
+FLAG = re.compile(r"flag\{[A-Za-z0-9_-]{32}\}")
 
 
 def solve(url):
@@ -19,7 +19,7 @@ def solve(url):
         text = response.read(513).decode("utf-8").strip()
 
     if not FLAG.fullmatch(text):
-        raise ValueError("service did not return an rsctf flag")
+        raise ValueError("service did not return a canonical A&D flag")
     return text
 
 
