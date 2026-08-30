@@ -1,5 +1,4 @@
-# This shared hill demonstrates RSCTF's signed Leaderboard referee. The referee is
-# deployed separately; its HMAC secret must never enter this challenge image.
+# This shared hill demonstrates lifecycle-bound reporting from a managed target.
 name: "King of the Hill Demo: Proof Arena"
 author: "rsctf documentation team"
 description: |
@@ -19,18 +18,17 @@ description: |
   evidence or subtract points. RSCTF awards 95% from relative performance and
   5% to that wave's first-place Crown. Only one unique leader receives it; on
   an exact top-score tie, every tied team receives full relative-performance
-  credit and no team receives the Crown. The external referee sends evidence,
-  never points or raw bearer tokens.
+  credit and no team receives the Crown. The managed target sends bounded
+  native evidence, never points or raw bearer tokens.
 type: KingOfTheHill
 category: Web
 disableBloodBonus: true
 
 container:
-  # Repository Bindings builds only ./src. The sibling observer/ directory and
-  # its runtime secret are deliberately outside the attackable hill image.
   memoryLimit: 64
   cpuCount: 1
   exposePort: 8080
 
 ad:
-  allowEgress: false
+  # Managed reporting and challenge internet access require outbound networking.
+  allowEgress: true

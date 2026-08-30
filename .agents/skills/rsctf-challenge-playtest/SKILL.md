@@ -1,12 +1,12 @@
 ---
 name: rsctf-challenge-playtest
-description: Prepare and run a player-equivalent blind playtest for an rsctf challenge. Use when asked to playtest, blind-solve, test discoverability, measure practical difficulty, find unintended solutions, or validate service/handout/hybrid/BYOC exposure; do not use the author solution or reference solver during the run.
+description: Prepare, run, and review a player-equivalent blind playtest for an rsctf challenge. Use when asked to playtest, blind-solve, assess clue fairness or practical difficulty, find unintended solutions, review a playtest report, or validate service/handout/hybrid/BYOC exposure; keep organizer knowledge out of the blind run.
 ---
 
 # rsctf Challenge Playtest
 
-Prepare the target from the author side, then give a fresh solver exactly what a real player
-receives.
+Prepare the target from the author side, give a fresh solver exactly what a real player
+receives, then return to the author context to review the completed report.
 
 ## Prepare the contract
 
@@ -54,10 +54,33 @@ Let the solver stop. Do not answer stuck questions with hints during the timed r
 completed `PLAYTEST-REPORT.md` with one verdict: `solved`, `partial`, `stuck`,
 `blocked-environment`, or `contaminated`.
 
+## Review from the author context
+
+End the blind solver context before opening any organizer material. The author or reviewer,
+not the blind solver, now inspects the exact candidate revision, completed
+`PLAYTEST-REPORT.md`, intended solution, and genuine evidence. Read
+[the review rubric](references/review-rubric.md) only in this phase.
+
+1. Validate the run boundary first. If author context, forbidden files, hints, or a different
+   target revision entered the run, classify it `contaminated` and do not use it for difficulty
+   or clue conclusions.
+2. Map each reported action to the intended trust-boundary ledger. Separate confirmed
+   capability, unsupported belief, literal clue, guess, dead end, environment failure, and
+   reproducible shortcut.
+3. Classify each unintended path by the highest boundary it skips. Critical and high paths
+   block release and difficulty judgment until fixed and rerun.
+4. Distinguish challenge defects from player mistakes. A missing breadcrumb is a clue defect;
+   an outage is an environment defect; complex but evidenced reasoning may support difficulty.
+5. Instantiate [the review template](assets/playtest-review.md) as `PLAYTEST-REVIEW.md` in the
+   same ignored room. Keep player-facing feedback spoiler-free: confirm only demonstrated
+   facts, identify false beliefs without giving replacements, and request controlled evidence
+   rather than hints.
+6. Recommend source, copy, or artifact changes only when the evidence supports them. Do not
+   implement fixes unless the user also asks for changes.
+
 ## Finish
 
-Check the report for timestamps, exact inputs, evidence chronology, guesses, dead ends,
-shortcuts, environment failures, and screenshot provenance. Do not inspect the organizer
-solution from the blind solver context. Use `$rsctf-playtest-review` from the author context
-after the report exists. Rebuild and start a fresh room after changing source, player copy, or
-artifacts.
+Report whether the run supports a difficulty assessment and list the exact blockers. Check
+timestamps, inputs, evidence chronology, dead ends, environment failures, and screenshot
+provenance. Rebuild and start a fresh room after changing source, player copy, or artifacts;
+never seed a new blind solver with the previous report or review.

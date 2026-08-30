@@ -3,11 +3,10 @@
 Playtesting answers a different question from automated testing: can a fresh player
 understand and solve the challenge using only what the event actually gives them?
 
-AI agents use `$rsctf-challenge-playtest` to prepare and hand off the clean room, then
-`$rsctf-playtest-review` to analyze the completed report from the author side. Both are
-available for implicit selection from matching requests and keep the blind solver separate
-from author context. Invoke `$rsctf-challenge-playtest` explicitly when you need deterministic
-routing into the clean-room workflow.
+AI agents use `$rsctf-challenge-playtest` for the complete workflow: prepare and hand off the
+clean room, end the blind context, then analyze the completed report from the author side. The
+skill is available for implicit selection from matching requests. Invoke it explicitly when
+you need deterministic routing into either the blind-run or review phase.
 
 ## First verify the build
 

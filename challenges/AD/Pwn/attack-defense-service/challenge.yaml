@@ -29,7 +29,7 @@ container:
 ad:
   # The importer prepares checker/{run.py,lib.py,requirements.txt}, installs the
   # exact dependency pin, and stores that environment on the challenge.
-  allowEgress: false
+  allowEgress: true
   allowSelfReset: true
   # false means rsctf hosts the per-team service. true selects the BYOC workflow.
   selfHosted: false

@@ -15,12 +15,12 @@ These checked-in examples are intended to be copied:
   uses pinned httpx to verify a self-hosted Web service through a BYOC tunnel.
 - [`Koth/Pwn/king-of-the-hill/checker/`](../challenges/Koth/Pwn/king-of-the-hill/checker/)
   checks hill health without touching the KotH ownership marker.
-- [`Koth/Web/api-observed-hill/checker/`](../challenges/Koth/Web/api-observed-hill/checker/)
-  checks normal hill behavior without reading the API-observed controller.
+- [`Koth/Web/managed-leaderboard-hill/checker/`](../challenges/Koth/Web/managed-leaderboard-hill/checker/)
+  checks normal hill behavior without reading the in-target reporter state.
 
-The independently deployed Leaderboard referee is documented in
-[Trusted KotH referee](koth-referee.md); it is not part of the attackable image or
-checker sandbox.
+Managed Leaderboard reporting is documented in
+[Managed Leaderboard KotH reporting](koth-reporting.md). Reporter code is part of the
+managed target, but it remains independent from the checker sandbox.
 
 ## Runtime contract
 
@@ -195,7 +195,7 @@ checks collectively cover `/health` and the current flag at `/secret`.
 
 KotH uses the matching runner but receives no flag. Its complete suite must
 cover the intended health/functionality contract and must not touch control
-input: `/koth/king` in marker mode or `/control` in the signed-API example.
+input: `/koth/king` in marker mode or in-process reporter state in the Leaderboard example.
 Both checked-in KotH examples register focused health and banner checks after
 their local HTTP helper:
 
@@ -321,7 +321,7 @@ value cannot rotate. The checker must not replace the flag itself, because that
 would bypass the platform's delivery path.
 
 KotH is different: it has no flag environment. RSCTF samples either
-`/koth/king` or the latest exact-context signed API observation before and after
+`/koth/king` or the latest exact-context managed observation before and after
 the custom checker, then performs ownership attribution itself. A KotH checker
 should verify a normal health/functionality exchange without reading or
 modifying either control source.

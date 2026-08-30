@@ -72,7 +72,7 @@ Start at the [documentation index](docs/README.md). The most-used pages are:
 - [Importing with Repository Bindings](docs/importing.md)
 - [Release checklist](docs/release-checklist.md)
 - [Provenance and deterministic variants](docs/provenance.md)
-- [Trusted KotH referee](docs/koth-referee.md)
+- [Managed Leaderboard KotH reporting](docs/koth-reporting.md)
 
 AI agents should begin with [AGENTS.md](AGENTS.md). Start Codex from this repository root
 or a directory below it so the repository-local skills are discovered. The integrated suite

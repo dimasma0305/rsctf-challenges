@@ -1,20 +1,17 @@
-#!/usr/bin/env python3
-"""Trusted referee for the RSCTF Leaderboard KotH example."""
+"""Lifecycle-bound in-target reporter for the RSCTF Leaderboard KotH example."""
 
 from __future__ import annotations
 
-import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from fractions import Fraction
 import hashlib
 import hmac
 import json
 import math
 import os
-from pathlib import Path
-import sys
+import threading
 import time
-from typing import Any
+from typing import Any, Callable
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -42,7 +39,7 @@ _DIRECT_OPENER = urllib.request.build_opener(
 )
 
 
-class RefereeHttpError(RuntimeError):
+class ReporterHttpError(RuntimeError):
     def __init__(self, status: int, detail: str):
         super().__init__(f"HTTP {status}: {detail}")
         self.status = status
@@ -50,21 +47,13 @@ class RefereeHttpError(RuntimeError):
 
 @dataclass(frozen=True)
 class Config:
-    origin: str
     game_id: int
     challenge_id: int
     secret: str
-    hill_url: str
+    context_url: str
+    observation_url: str
     poll_seconds: float
     timeout_seconds: float
-    state_file: Path | None = None
-
-    @property
-    def api_base(self) -> str:
-        return (
-            f"{self.origin}/api/v1/koth/games/{self.game_id}"
-            f"/challenges/{self.challenge_id}"
-        )
 
 
 @dataclass
@@ -130,17 +119,14 @@ def _bounded_number(name: str, default: str, minimum: float, maximum: float) -> 
     return value
 
 
-def _normalize_url(name: str, value: str, allow_http: bool) -> str:
+def _normalize_url(name: str, value: str) -> str:
     parsed = urllib.parse.urlsplit(value.strip())
     try:
         parsed.port
     except ValueError as error:
         raise ValueError(f"{name} contains an invalid port") from error
-    allowed_schemes = {"https"}
-    if allow_http:
-        allowed_schemes.add("http")
     if (
-        parsed.scheme not in allowed_schemes
+        parsed.scheme not in {"http", "https"}
         or parsed.hostname is None
         or parsed.username is not None
         or parsed.password is not None
@@ -148,37 +134,46 @@ def _normalize_url(name: str, value: str, allow_http: bool) -> str:
         or parsed.fragment
         or any(ord(character) < 33 for character in value.strip())
     ):
-        expected = "https" if not allow_http else "http or https"
         raise ValueError(
-            f"{name} must be an absolute {expected} URL "
+            f"{name} must be an absolute HTTP(S) URL "
             "without credentials, whitespace, or a query"
         )
     path = parsed.path.rstrip("/")
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
 
-def load_config(allow_http: bool) -> Config:
-    secret = _required_environment("RSCTF_KOTH_OBSERVER_SECRET")
-    if secret != secret.strip() or not secret.startswith("koth_api_") or len(secret) < 32:
-        raise ValueError("RSCTF_KOTH_OBSERVER_SECRET is not a valid copied referee secret")
-    state_path = os.environ.get("RSCTF_KOTH_STATE_FILE", "").strip()
+def load_config() -> Config | None:
+    names = (
+        "RSCTF_KOTH_GAME_ID",
+        "RSCTF_KOTH_CHALLENGE_ID",
+        "RSCTF_KOTH_CONTEXT_URL",
+        "RSCTF_KOTH_OBSERVATION_URL",
+        "RSCTF_KOTH_REPORTER_SECRET",
+    )
+    present = [bool(os.environ.get(name)) for name in names]
+    if not any(present):
+        return None
+    if not all(present):
+        missing = ", ".join(name for name in names if not os.environ.get(name))
+        raise ValueError(f"incomplete managed reporter environment; missing {missing}")
+
+    secret = _required_environment("RSCTF_KOTH_REPORTER_SECRET")
+    if secret != secret.strip() or not secret.startswith("koth_target_") or len(secret) < 32:
+        raise ValueError("RSCTF_KOTH_REPORTER_SECRET is not a valid target credential")
     return Config(
-        origin=_normalize_url(
-            "RSCTF_ORIGIN",
-            _required_environment("RSCTF_ORIGIN"),
-            allow_http,
-        ),
-        game_id=_positive_integer("RSCTF_GAME_ID"),
-        challenge_id=_positive_integer("RSCTF_CHALLENGE_ID"),
+        game_id=_positive_integer("RSCTF_KOTH_GAME_ID"),
+        challenge_id=_positive_integer("RSCTF_KOTH_CHALLENGE_ID"),
         secret=secret,
-        hill_url=_normalize_url(
-            "RSCTF_KOTH_HILL_URL",
-            _required_environment("RSCTF_KOTH_HILL_URL"),
-            allow_http,
+        context_url=_normalize_url(
+            "RSCTF_KOTH_CONTEXT_URL",
+            _required_environment("RSCTF_KOTH_CONTEXT_URL"),
+        ),
+        observation_url=_normalize_url(
+            "RSCTF_KOTH_OBSERVATION_URL",
+            _required_environment("RSCTF_KOTH_OBSERVATION_URL"),
         ),
         poll_seconds=_bounded_number("RSCTF_KOTH_POLL_SECONDS", "5", 1, 300),
         timeout_seconds=_bounded_number("RSCTF_KOTH_TIMEOUT_SECONDS", "5", 1, 60),
-        state_file=Path(state_path) if state_path else None,
     )
 
 
@@ -189,7 +184,7 @@ def _request_json(request: urllib.request.Request, timeout: float) -> dict[str, 
     except urllib.error.HTTPError as error:
         raw_detail = error.read(2_048).decode("utf-8", errors="replace").strip()
         detail = raw_detail.encode("unicode_escape").decode("ascii")[:512]
-        raise RefereeHttpError(error.code, detail or "request rejected") from error
+        raise ReporterHttpError(error.code, detail or "request rejected") from error
     if len(body) > MAX_RESPONSE_BYTES:
         raise RuntimeError("remote JSON response exceeded the 2 MiB limit")
     try:
@@ -215,17 +210,20 @@ def _integer(value: object, minimum: int, maximum: int, name: str) -> int:
     return value
 
 
-class RefereeClient:
-    def __init__(self, config: Config):
+class ManagedReporter:
+    def __init__(
+        self,
+        config: Config,
+        read_evidence_page: Callable[[int], dict[str, Any]],
+    ):
         self.config = config
+        self.read_evidence_page = read_evidence_page
         self.context: RoundContext | None = None
         self.cursor = 0
         self.waves: dict[int, dict[str, TeamTotals]] = {}
         self.finalized_crowns: dict[int, str | None] = {}
-        self.crown_token_hash: str | None = None
         self.last_submitted_digest: str | None = None
         self.last_timestamp_ms = 0
-        self._load_state()
 
     def _get_json(self, url: str) -> dict[str, Any]:
         request = urllib.request.Request(
@@ -235,7 +233,7 @@ class RefereeClient:
         return _request_json(request, self.config.timeout_seconds)
 
     def fetch_context(self) -> RoundContext:
-        value = self._get_json(f"{self.config.api_base}/context")
+        value = self._get_json(self.config.context_url)
         expected = {
             "apiVersion",
             "context",
@@ -259,7 +257,7 @@ class RefereeClient:
         if (
             not _canonical_hash(opaque)
             or not isinstance(hashes, list)
-            or not 2 <= len(hashes) <= MAX_TEAMS
+            or not 1 <= len(hashes) <= MAX_TEAMS
             or any(not _canonical_hash(item) for item in hashes)
             or len(set(hashes)) != len(hashes)
         ):
@@ -302,7 +300,7 @@ class RefereeClient:
         )
 
     def _fetch_page(self) -> dict[str, Any]:
-        return self._get_json(f"{self.config.hill_url}/referee/evidence?after={self.cursor}")
+        return self.read_evidence_page(self.cursor)
 
     def _consume_feed(self, context: RoundContext) -> bool:
         changed = False
@@ -424,7 +422,6 @@ class RefereeClient:
             ]
             crown = tied[0] if len(tied) == 1 else None
         self.finalized_crowns[wave_start] = crown
-        self.crown_token_hash = crown
 
     def _body(self, context: RoundContext, current_time_ms: int) -> bytes:
         cutoff = current_time_ms - WAVE_FINALIZATION_LAG_MS
@@ -513,7 +510,7 @@ class RefereeClient:
             hashlib.sha256,
         ).hexdigest()
         request = urllib.request.Request(
-            f"{self.config.api_base}/observations",
+            self.config.observation_url,
             data=body,
             method="POST",
             headers={
@@ -552,8 +549,8 @@ class RefereeClient:
                 or context.reset_attempt != self.context.reset_attempt
             )
             if runtime_changed:
-                # A crown transition replaced the arena, so its local evidence
-                # cursor restarted with the pristine container.
+                # A managed target reset replaced the arena, so its local
+                # evidence cursor restarted with the pristine container.
                 self.cursor = 0
                 self.waves = {}
                 self.finalized_crowns = {}
@@ -580,11 +577,9 @@ class RefereeClient:
         body = self._body(context, time.time_ns() // 1_000_000)
         digest = hashlib.sha256(body).hexdigest()
         if digest == self.last_submitted_digest:
-            self._save_state()
             return False
         accepted = self.submit(context, body)
         self.last_submitted_digest = digest
-        self._save_state()
         print(
             "accepted KotH Leaderboard snapshot:"
             f" round={accepted.get('roundNumber')}"
@@ -596,163 +591,38 @@ class RefereeClient:
         )
         return True
 
-    def _load_state(self) -> None:
-        path = self.config.state_file
-        if path is None or not path.exists():
-            return
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-            if set(value) != {
-                "context",
-                "cursor",
-                "crownTokenHash",
-                "finalizedCrowns",
-                "lastSubmittedDigest",
-                "lastTimestampMs",
-                "waves",
-            }:
-                raise ValueError("unexpected state fields")
-            context = value["context"]
-            if context is not None:
-                self.context = RoundContext(
-                    opaque=context["opaque"],
-                    cycle_number=context["cycleNumber"],
-                    reset_attempt=context["resetAttempt"],
-                    round_number=context["roundNumber"],
-                    starts_at=context["startsAt"],
-                    ends_at=context["endsAt"],
-                    cycle_ends_at=context["cycleEndsAt"],
-                    eligible_hashes=frozenset(context["eligibleHashes"]),
-                    objective_ids=tuple(context["objectiveIds"]),
-                    objective_schema_hash=context["objectiveSchemaHash"],
-                )
-            self.cursor = int(value["cursor"])
-            self.last_submitted_digest = value["lastSubmittedDigest"]
-            self.last_timestamp_ms = int(value["lastTimestampMs"])
-            self.crown_token_hash = value["crownTokenHash"]
-            if self.crown_token_hash is not None and not _canonical_hash(
-                self.crown_token_hash
-            ):
-                raise ValueError("invalid persisted Crown identity")
-            self.waves = {
-                int(wave_start): {
-                    token_hash: TeamTotals(**totals)
-                    for token_hash, totals in teams.items()
-                }
-                for wave_start, teams in value["waves"].items()
-            }
-            self.finalized_crowns = {
-                int(wave_start): crown
-                for wave_start, crown in value["finalizedCrowns"].items()
-            }
-            if (
-                self.cursor < 0
-                or self.last_timestamp_ms < 0
-                or any(wave_start < 0 for wave_start in self.waves)
-                or any(wave_start < 0 for wave_start in self.finalized_crowns)
-                or any(
-                    crown is not None and not _canonical_hash(crown)
-                    for crown in self.finalized_crowns.values()
-                )
-            ):
-                raise ValueError("negative state coordinate")
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-            raise ValueError(f"invalid referee state file {path}") from error
-
-    def _save_state(self) -> None:
-        path = self.config.state_file
-        if path is None:
-            return
-        context = None
-        if self.context is not None:
-            context = {
-                "opaque": self.context.opaque,
-                "cycleNumber": self.context.cycle_number,
-                "resetAttempt": self.context.reset_attempt,
-                "roundNumber": self.context.round_number,
-                "startsAt": self.context.starts_at,
-                "endsAt": self.context.ends_at,
-                "cycleEndsAt": self.context.cycle_ends_at,
-                "eligibleHashes": sorted(self.context.eligible_hashes),
-                "objectiveIds": list(self.context.objective_ids),
-                "objectiveSchemaHash": self.context.objective_schema_hash,
-            }
-        value = {
-            "context": context,
-            "cursor": self.cursor,
-            "crownTokenHash": self.crown_token_hash,
-            "finalizedCrowns": {
-                str(wave_start): crown
-                for wave_start, crown in sorted(self.finalized_crowns.items())
-            },
-            "lastSubmittedDigest": self.last_submitted_digest,
-            "lastTimestampMs": self.last_timestamp_ms,
-            "waves": {
-                str(wave_start): {
-                    token_hash: asdict(totals)
-                    for token_hash, totals in sorted(teams.items())
-                }
-                for wave_start, teams in sorted(self.waves.items())
-            },
-        }
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-        try:
-            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
-                json.dump(value, output, separators=(",", ":"), sort_keys=True)
-                output.flush()
-                os.fsync(output.fileno())
-            os.replace(temporary, path)
-        finally:
-            try:
-                temporary.unlink()
-            except FileNotFoundError:
-                pass
-
 
 def _retry_delay(failures: int, poll_seconds: float) -> float:
     return min(30.0, max(1.0, poll_seconds) * (2 ** min(failures - 1, 5)))
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="submit one current Leaderboard snapshot and exit (installation preflight)",
-    )
-    parser.add_argument(
-        "--allow-insecure-http",
-        action="store_true",
-        help="allow http:// URLs for local testing only",
-    )
-    arguments = parser.parse_args(argv)
+def start_managed_reporter(
+    read_evidence_page: Callable[[int], dict[str, Any]],
+) -> threading.Thread | None:
+    """Start reporting when rsctf injected the complete managed-target contract."""
     try:
-        config = load_config(arguments.allow_insecure_http)
-        client = RefereeClient(config)
+        config = load_config()
     except ValueError as error:
-        print(f"configuration error: {error}", file=sys.stderr)
-        return 2
+        print(f"managed reporter configuration error: {error}", flush=True)
+        return None
+    if config is None:
+        print("managed reporter disabled: rsctf environment is absent", flush=True)
+        return None
 
-    failures = 0
-    while True:
-        try:
-            client.poll_once()
-            failures = 0
-            if arguments.once:
-                return 0
-            time.sleep(config.poll_seconds)
-        except (RefereeHttpError, urllib.error.URLError, OSError, RuntimeError) as error:
-            failures += 1
-            print(f"referee error: {error}", file=sys.stderr, flush=True)
-            if arguments.once:
-                return 1
-            time.sleep(_retry_delay(failures, config.poll_seconds))
+    client = ManagedReporter(config, read_evidence_page)
 
+    def run() -> None:
+        failures = 0
+        while True:
+            try:
+                client.poll_once()
+                failures = 0
+                time.sleep(config.poll_seconds)
+            except (ReporterHttpError, urllib.error.URLError, OSError, RuntimeError) as error:
+                failures += 1
+                print(f"managed reporter error: {error}", flush=True)
+                time.sleep(_retry_delay(failures, config.poll_seconds))
 
-if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except KeyboardInterrupt:
-        raise SystemExit(130) from None
+    thread = threading.Thread(target=run, name="rsctf-koth-reporter", daemon=True)
+    thread.start()
+    return thread

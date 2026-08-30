@@ -51,7 +51,6 @@ challenges/<mode>/<category>/<slug>/
 │   └── requirements.txt # optional: exact wheel-installable PyPI pins
 ├── generator/           # optional: deterministic variant build context
 │   └── Dockerfile
-├── observer/            # optional: independently deployed organizer process
 └── solution/            # required tracked organizer material
     ├── README.md        # concise writeup in the standard format
     └── solve.py         # simple reference solver
@@ -69,15 +68,14 @@ but this repository does not use that fallback for new work.
 | --- | --- | --- | --- |
 | `challenge.yaml` | rsctf and players | metadata, public copy, challenge type, delivery and runtime policy | unknown fields, live credentials, private notes |
 | `dist/` | players | byte-for-byte downloadable handout | solver, solution, hidden source, real production flag, repository history |
-| `src/` | service build and runtime | only files required to build and run the attackable service | author notes, observer secret, solution, unrelated tooling |
+| `src/` | service build and runtime | only files required to build and run the attackable service, including managed reporting beside gameplay state | author notes, authored reporter credentials, solution, unrelated tooling |
 | `checker/` | trusted rsctf checker sandbox | bounded functional checks against one target IP and port | service implementation, stateful attacks, shell-based dependencies |
 | `generator/` | trusted variant runner | deterministic content, hints, and flag derivation | network dependencies, mutable inputs, unrelated service code |
-| `observer/` | organizer-operated infrastructure | external evidence collection and signed KotH submissions | secrets in source, player-facing service code |
 | `solution/` | repository readers and organizers; never players by delivery | intended path, simple solver, reviewed evidence, limitations | live credentials, production flags, unreferenced captures, player-delivery files |
 
 Component-specific unit tests stay with the component and follow that language's normal
 layout. Add a package-level test directory only when a real cross-component test cannot be
-owned by `src/`, `checker/`, `generator/`, or `observer/`. Test code is not a substitute
+owned by `src/`, `checker/`, or `generator/`. Test code is not a substitute
 for the organizer reference solver and must not enter `dist/`.
 
 ## Naming rules
@@ -87,7 +85,8 @@ for the organizer reference solver and must not enter `dist/`.
   `Web`, `Reverse`, `Blockchain`, `Forensics`, `Hardware`, `Mobile`, `PPC`, `AI`,
   `Pentest`, or `OSINT`.
 - `<slug>` uses lowercase ASCII kebab-case, describes one challenge, and is stable after
-  the first import. Use `api-observed-hill`, not `API Observed Hill` or `api_observed_hill`.
+  the first import. Use `managed-leaderboard-hill`, not `Managed Leaderboard Hill` or
+  `managed_leaderboard_hill`.
 - `challenge.yaml` uses the canonical filename even though rsctf accepts
   `challenge.yml` for compatibility.
 - Challenge display names must be unique within the event. Directory slugs should also
@@ -116,7 +115,7 @@ Start with the nearest example and retain only the other applicable components.
 | managed Attack & Defense | `challenge.yaml`, `src/`, `checker/` | optional deliberate handout | rsctf runs one service per accepted team |
 | self-hosted/BYOC Attack & Defense | `challenge.yaml`, `src/`, `checker/` | platform-generated bundle and image | keep `ad.selfHosted: true`; do not commit a generated team bundle |
 | marker King of the Hill | `challenge.yaml`, `src/`, `checker/` | optional deliberate handout | service writes the current control token to `/koth/king` |
-| API-observed King of the Hill | `challenge.yaml`, `src/`, `checker/`, `observer/` | optional deliberate handout | observer is deployed separately and never enters `src/` |
+| managed Leaderboard King of the Hill | `challenge.yaml`, `src/`, `checker/` | optional deliberate handout | reporter stays beside authoritative gameplay state in `src/` |
 
 `dist/` is optional for a service unless players truly receive files. A source tree in
 Git is not automatically a player handout. Conversely, source intentionally supplied to
@@ -222,12 +221,12 @@ the solver.
   and the checker receives that exact value.
 - Deterministic variants return a server-side flag in their generated manifest. The flag is
   not a player attachment.
-- KotH uses the selected marker or signed API capability source and receives no checker
-  flag.
+- KotH uses the selected marker or managed Leaderboard evidence source and receives no
+  checker flag.
 
 Do not use a real event flag in source tests, Docker layers, health checks, logs, screenshots,
 solution evidence, or CI. Use unmistakable local values that match the mode's grammar. Redact
-normal flags to `rsctf{...}` and A&D flags to `flag{...}`. Store observer secrets, receipt
+normal flags to `rsctf{...}` and A&D flags to `flag{...}`. Store reporter secrets, receipt
 issuer tokens, admin JWTs, repository tokens, SSH keys, and production endpoints only in the
 deployment's restricted secret/configuration stores.
 
@@ -265,6 +264,9 @@ remove inapplicable keys. Do not invent metadata aliases or CI-only fields.
 - Use `flags` only for supported Jeopardy static flag rows. Use `flagTemplate` only for
   dynamic containers. A&D uses its fixed per-round grammar, while KotH uses its
   control-source contract instead of flags.
+- Set `ad.allowEgress: true` for managed A&D and KotH packages so copied targets can reach
+  the internet. Choose `false` only when network isolation is an intentional, rehearsed
+  part of the challenge contract; it does not restrict a BYOC host.
 - Use a relative `provide` path and keep the target inside the package. This repository
   names `dist` explicitly when a handout exists.
 - Omit `containerImage` when Repository Bindings should build the adjacent
@@ -322,7 +324,7 @@ A healthy image proves that its process starts and answers the health probe. It 
 prove the challenge is solvable, that a flag rotates, that a checker classifies failures
 correctly, or that Kubernetes readiness is configured.
 
-## Checker, generator, and observer boundaries
+## Checker, generator, and managed-reporting boundaries
 
 ### Checker
 
@@ -344,12 +346,14 @@ result, and produces byte-identical output for identical input. Generated conten
 may be player-facing; generated flags remain server-side. See
 [Provenance](provenance.md).
 
-### Observer
+### Managed Leaderboard reporting
 
-`observer/` is organizer operational tooling. It is neither player source nor part of the
-attackable service build context. Keep its secret and persistent state in the deployment's
-secret and state stores, not in this repository. Test and deploy it under an independent
-identity. See [Trusted KotH referee](koth-referee.md).
+Keep the reporter in `src/` beside the gameplay state it summarizes. Read only the
+lifecycle-bound values rsctf injects at runtime, remain healthy when the complete contract is
+absent, authenticate player capabilities immediately, and retain only rsctf's pseudonym.
+Submit bounded finalized-wave evidence and a Crown assertion, never points. Do not expose the
+credential or reporter state to player responses, handouts, child environments, logs, or the
+functional checker. See [Managed Leaderboard KotH reporting](koth-reporting.md).
 
 ## Organizer solution boundary
 
@@ -367,12 +371,12 @@ challenges/<mode>/<category>/<slug>/solution/
 These files are tracked. Anyone with repository read access can read them. Keep real pre-event
 repositories restricted, or retain unpublished solutions in a separate access-controlled
 store. This public example deliberately discloses its demonstration solutions. Tracking a
-solution does not make it player-facing: `provide`, Docker contexts, generators, observers,
+solution does not make it player-facing: `provide`, Docker contexts, generators,
 and playtest rooms must still exclude it.
 
 Never put `challenge.yaml` or `.gzevent` inside `solution/`, because recursive discovery
 would treat them as live manifests in a working tree. Never copy `solution/` into `dist/`,
-`src/`, a generator context, observer deployment bundle, screenshot, or playtest room.
+`src/`, a generator context, screenshot, or playtest room.
 
 Use the exact format and copyable template in [Solutions and reference solvers](solutions.md).
 
@@ -425,7 +429,7 @@ A challenge is ready only when all applicable claims have evidence for the same 
 - component tests and a clean reference solve pass;
 - long-running images reach Docker health and pass an independent player-visible protocol
   test;
-- checkers, flag delivery, generators, observers, BYOC, or engine lifecycle behavior have
+- checkers, flag delivery, generators, managed reporting, BYOC, or engine lifecycle behavior have
   been exercised through their actual staging path when applicable;
 - a fresh blind playtest supports the clue and difficulty assessment;
 - high- and critical-severity unintended paths are fixed and retested; and

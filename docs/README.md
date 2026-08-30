@@ -13,7 +13,7 @@ reading every reference front to back.
 | run a fair blind solve | [Playtesting](playtesting.md) |
 | import or rescan the repository | [Repository Bindings](importing.md) |
 | prepare deterministic variants or solve receipts | [Provenance](provenance.md) |
-| deploy the signed Leaderboard KotH observer | [Trusted KotH referee](koth-referee.md) |
+| implement managed Leaderboard KotH evidence | [Managed KotH reporting](koth-reporting.md) |
 | decide whether a challenge is ready to import | [Release checklist](release-checklist.md) |
 
 The root [README](../README.md) is intentionally short. Challenge packages contain
@@ -26,5 +26,4 @@ AI coding agents use the same facts through the repository's [AGENTS.md](../AGEN
 and task-specific workflows under `.agents/skills/`. The skills are implicitly selectable;
 `$rsctf-challenge-design`, `$rsctf-challenge-authoring`,
 `$rsctf-challenge-solution`, `$rsctf-challenge-playtest`,
-`$rsctf-playtest-review`, and `$rsctf-challenge-release-review` can also be invoked
-explicitly.
+and `$rsctf-challenge-release-review` can also be invoked explicitly.

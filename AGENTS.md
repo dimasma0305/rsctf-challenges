@@ -14,10 +14,9 @@ routes before acting:
 | Task | Skill |
 | --- | --- |
 | brainstorm an exploit, clue path, or difficulty target | `$rsctf-challenge-design` |
-| create or edit manifests, source, handouts, checkers, generators, or observers | `$rsctf-challenge-authoring` |
+| create or edit manifests, source, handouts, checkers, generators, or managed reporters | `$rsctf-challenge-authoring` |
 | write/reproduce the organizer README.md or solve.py | `$rsctf-challenge-solution` |
-| prepare and run a fresh blind solve | `$rsctf-challenge-playtest` |
-| assess a completed blind report and unintended paths | `$rsctf-playtest-review` |
+| prepare, run, or review a fresh blind solve | `$rsctf-challenge-playtest` |
 | decide whether a revision is ready to import or enable | `$rsctf-challenge-release-review` |
 
 A request spanning the full lifecycle uses those skills in that order where applicable. Do
@@ -53,11 +52,14 @@ them and never expose them to a blind solver.
   wrapper, discovery helper, or repository-local checker into this repository.
 - Keep A&D/KotH checker transport and assertions in `checker/run.py`; keep the shared
   platform runner in `checker/lib.py`. Copy a complete checker directory.
+- Set `ad.allowEgress: true` in managed A&D and KotH examples so copied challenge
+  containers can reach the internet. Use `false` only for a deliberate reviewed isolation
+  requirement; the field does not control a BYOC host.
 - Keep deterministic generator code in `generator/` beside its manifest.
-- Never place a real flag, organizer token, observer secret, admin JWT, production hostname,
+- Never place a real flag, organizer token, reporter secret, admin JWT, production hostname,
   or unredacted live-secret evidence in committed solutions, screenshots, logs, or fixtures.
 - Require `solution/README.md` and a small `solution/solve.py` in every package. Keep both out
-  of `dist/`, `src/`, generators, observer bundles, and playtest rooms. Never place a
+  of `dist/`, `src/`, generators, and playtest rooms. Never place a
   challenge/event manifest inside `solution/` because rsctf discovers manifests independently
   of Git ignore rules.
 - Treat all committed demo flags as disclosed. Changing the current file does not

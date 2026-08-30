@@ -1,6 +1,6 @@
 ---
 name: rsctf-challenge-authoring
-description: Create or modify rsctf Repository Bindings challenge packages. Use for scaffolding package layout, editing challenge manifests, player handouts, container source, A&D/KotH checkers, deterministic generators, or KotH observers; use the separate solution, playtest, and release-review skills for those phases.
+description: Create or modify rsctf Repository Bindings challenge packages. Use for scaffolding package layout, editing challenge manifests, player handouts, container source, A&D/KotH checkers, deterministic generators, or managed KotH reporters; use the separate solution, playtest, and release-review skills for those phases.
 ---
 
 # rsctf Challenge Authoring
@@ -22,8 +22,8 @@ Read each selected document completely before editing:
   [Manifest reference](../../../docs/configuration.md)
 - A&D/KotH checker or verdict behavior:
   [Checker development](../../../docs/checkers.md)
-- API-observed Leaderboard KotH referee:
-  [Trusted KotH referee](../../../docs/koth-referee.md)
+- Managed Leaderboard KotH reporting:
+  [Managed KotH reporting](../../../docs/koth-reporting.md)
 - Deterministic variants or trusted solve receipts:
   [Provenance](../../../docs/provenance.md)
 - Import mechanics needed while authoring:
@@ -45,8 +45,8 @@ references merely because they exist.
    ownership table.
 4. Put behavior in its owning layer: manifest metadata in `challenge.yaml`, service
    code in `src/`, player files in `dist/`, checker protocol in `checker/run.py`,
-   deterministic generation in `generator/`, and trusted referee logic in
-   `observer/`.
+   deterministic generation in `generator/`, and managed KotH reporting beside the
+   authoritative gameplay state in `src/`.
 5. Add or update focused regression coverage for contract changes. Keep inputs bounded,
    dependencies pinned, and secrets absent from source and evidence.
 6. Run focused checks, `make validate`, and `make matrix`. Both commands must use the
@@ -68,7 +68,10 @@ references merely because they exist.
 - Omit `minScoreRate`, `difficulty`, and `submissionLimit` when rsctf's current
   Jeopardy defaults are intended. Add them only for a deliberate scoring-policy
   override, and omit them from A&D and KotH manifests.
-- Never commit organizer tokens, observer HMAC secrets, production hostnames, database dumps,
+- Set `ad.allowEgress: true` for managed A&D and KotH packages in this repository so
+  copied targets can reach the internet. Use `false` only for a deliberate reviewed
+  isolation requirement; it does not control BYOC-host networking.
+- Never commit organizer tokens, managed reporter secrets, production hostnames, database dumps,
   container logs containing flags, live credentials, or unredacted secret evidence.
 - Give every package a tracked organizer `solution/README.md` and small `solution/solve.py`.
   Keep them outside every player import surface, build context, handout, and blind-playtest

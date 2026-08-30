@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Solve one proof-arena puzzle with the team's current KotH token."""
+"""Solve one managed proof-arena puzzle with the team's current KotH token."""
 
 import argparse
 import hashlib

@@ -163,7 +163,7 @@ Dockerfile health checks; validate those runtimes through their actual backend t
 | Key | Import default | Behavior |
 | --- | --- | --- |
 | `checkerImage` | absent | Omit it; concrete checker-container references are rejected, while an adjacent `checker/run.py` entry point and its sibling source files are prepared automatically |
-| `allowEgress` | `false` | Controls outbound networking for platform-managed A&D and KotH containers, not checker or BYOC-host egress |
+| `allowEgress` | `false` | Controls outbound networking for platform-managed A&D and KotH containers, not checker or BYOC-host egress; this repository sets it to `true` explicitly so copied managed challenges can reach the internet |
 | `allowSelfReset` | `true` | Player reset for managed A&D; unavailable for BYOC |
 | `sshRequiresFlag` | `false` | Persisted but not currently enforced by SSH authorization; omit it from runnable templates |
 | `selfHosted` | `false` | `true` selects BYOC and is valid only for `AttackDefense` |
@@ -207,7 +207,7 @@ Use these two A&D examples to compare the hosting modes:
 ```yaml
 # Platform-hosted: rsctf launches one service container per accepted team.
 ad:
-  allowEgress: false
+  allowEgress: true
   allowSelfReset: true
   selfHosted: false
 ```
@@ -222,15 +222,16 @@ For KotH, use only settings that affect the platform-owned hill:
 
 ```yaml
 ad:
-  allowEgress: false
+  allowEgress: true
 ```
 
-The repository manifest does not contain an API-observer secret or claim-source
-switch. For an API-observed hill, import the ordinary `KingOfTheHill` manifest,
-then enable **API** for that hill in the A&D / KotH operator view before the
-official snapshot is created. Store the one-time secret only in an independently
-hosted observer. RSCTF freezes `Marker` or `Api` as the claim source when
-official scoring starts; the observer reports a capability, never a score.
+The repository manifest does not contain a reporter secret or claim-source switch. For a
+Leaderboard hill, import the ordinary `KingOfTheHill` manifest, configure rsctf's private
+reporter callback origin, then choose **Enable Leaderboard** in the A&D / KotH operator view
+before official scoring starts. rsctf injects a lifecycle-bound credential and exact URLs
+into the replacement managed target. Reporter code belongs beside authoritative gameplay
+state in `src/` and submits bounded native evidence, never scores. See
+[Managed Leaderboard KotH reporting](koth-reporting.md).
 
 Even in BYOC mode, keep a local `src/Dockerfile`: rsctf builds it during import
 and streams the immutable challenge-service image to authorized teams. The BYOC
@@ -250,7 +251,7 @@ dependency and all base images for a completely Docker-Hub-free deployment.
 | platform-hosted `AttackDefense` | [`AD/Pwn/attack-defense-service`](../challenges/AD/Pwn/attack-defense-service/) |
 | self-hosted `AttackDefense` | [`AD/Web/self-hosted-service`](../challenges/AD/Web/self-hosted-service/) |
 | marker `KingOfTheHill` | [`Koth/Pwn/king-of-the-hill`](../challenges/Koth/Pwn/king-of-the-hill/) |
-| signed-API `KingOfTheHill` | [`Koth/Web/api-observed-hill`](../challenges/Koth/Web/api-observed-hill/) |
+| managed Leaderboard `KingOfTheHill` | [`Koth/Web/managed-leaderboard-hill`](../challenges/Koth/Web/managed-leaderboard-hill/) |
 
 For deterministic variants and trusted solve receipts, continue with
 [`provenance.md`](provenance.md). For custom functional checks, continue with

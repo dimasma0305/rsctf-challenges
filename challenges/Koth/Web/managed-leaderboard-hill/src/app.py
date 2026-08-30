@@ -1,9 +1,9 @@
-"""Leaderboard KotH hill with one-use proof-of-work objectives.
+"""Leaderboard KotH hill with managed one-use proof-of-work reporting.
 
 The player supplies a current RSCTF capability only when starting a puzzle.
-The service hashes it immediately and retains only the SHA-256 digest. A
-trusted external referee reads the bounded evidence feed and submits normalized
-integer budgets to RSCTF; it never receives the bearer capability.
+The service exchanges it with rsctf and retains only the returned SHA-256
+pseudonym. A background reporter reads the same in-memory evidence state and
+submits normalized integer budgets; the challenge never submits points.
 """
 
 from __future__ import annotations
@@ -18,7 +18,11 @@ import secrets
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlsplit
+import urllib.error
+import urllib.parse
+import urllib.request
+
+from reporter import start_managed_reporter
 
 
 MAX_REQUEST_BYTES = 2_048
@@ -36,6 +40,18 @@ GLOBAL_STARTS_PER_SECOND = 100
 TEAM_STARTS_PER_MINUTE = 20
 TOKEN_PATTERN = re.compile(r"^koth_[A-Za-z0-9_-]{8,128}$")
 BANNER = "rsctf Leaderboard KotH: solve one-use puzzles; every team can score"
+MAX_AUTH_RESPONSE_BYTES = 4_096
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
+_DIRECT_OPENER = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}),
+    _NoRedirect(),
+)
 
 
 @dataclass
@@ -62,6 +78,84 @@ def now_ms() -> int:
 
 def compact_json(value: object) -> bytes:
     return json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
+
+
+def _managed_auth_config() -> tuple[str, int, int] | None:
+    names = (
+        "RSCTF_KOTH_PLATFORM_URL",
+        "RSCTF_KOTH_GAME_ID",
+        "RSCTF_KOTH_CHALLENGE_ID",
+    )
+    present = [bool(os.environ.get(name)) for name in names]
+    if not any(present):
+        return None
+    if not all(present):
+        missing = ", ".join(name for name in names if not os.environ.get(name))
+        raise RuntimeError(f"incomplete capability environment; missing {missing}")
+
+    origin = os.environ["RSCTF_KOTH_PLATFORM_URL"].strip()
+    parsed = urllib.parse.urlsplit(origin)
+    try:
+        parsed.port
+        game_id = int(os.environ["RSCTF_KOTH_GAME_ID"])
+        challenge_id = int(os.environ["RSCTF_KOTH_CHALLENGE_ID"])
+    except ValueError as error:
+        raise RuntimeError("invalid managed capability environment") from error
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+        or game_id <= 0
+        or challenge_id <= 0
+    ):
+        raise RuntimeError("invalid managed capability environment")
+    normalized = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
+    return normalized, game_id, challenge_id
+
+
+AUTH_CONFIG = _managed_auth_config()
+
+
+def authenticate_capability(token: str) -> str | None:
+    """Return rsctf's pseudonym, or a local hash when reporting is not enabled."""
+    if AUTH_CONFIG is None:
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    origin, game_id, challenge_id = AUTH_CONFIG
+    data = compact_json(
+        {"challengeId": challenge_id, "gameId": game_id, "token": token}
+    )
+    request = urllib.request.Request(
+        f"{origin}/api/v1/koth/capability/authenticate",
+        data=data,
+        method="POST",
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+    )
+    try:
+        with _DIRECT_OPENER.open(request, timeout=3) as response:
+            body = response.read(MAX_AUTH_RESPONSE_BYTES + 1)
+    except urllib.error.HTTPError as error:
+        if error.code in {400, 401, 403, 404}:
+            return None
+        raise
+    if len(body) > MAX_AUTH_RESPONSE_BYTES:
+        raise RuntimeError("rsctf capability response exceeded its size limit")
+    try:
+        value = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("rsctf capability response was invalid JSON") from error
+    team_id = value.get("teamId") if isinstance(value, dict) else None
+    if (
+        not isinstance(team_id, str)
+        or len(team_id) != 64
+        or any(character not in "0123456789abcdef" for character in team_id)
+    ):
+        raise RuntimeError("rsctf capability response contained an invalid pseudonym")
+    return team_id
 
 
 def prune_sessions(timestamp_ms: int) -> None:
@@ -133,6 +227,25 @@ def append_evidence(
     next_cursor += 1
 
 
+def read_evidence_page(after: int) -> dict[str, object]:
+    """Return one bounded, immutable copy for the in-process reporter."""
+    with state_lock:
+        oldest = int(events[0]["cursor"]) if events else next_cursor
+        selected = [dict(event) for event in events if int(event["cursor"]) > after][
+            :MAX_RESPONSE_EVENTS
+        ]
+        latest = next_cursor - 1
+    next_value = int(selected[-1]["cursor"]) if selected else after
+    return {
+        "activityTarget": ACTIVITY_TARGET,
+        "events": selected,
+        "gap": after + 1 < oldest,
+        "hasMore": next_value < latest,
+        "latestCursor": latest,
+        "nextCursor": next_value,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "rsctf-leaderboard-koth"
     sys_version = ""
@@ -175,52 +288,17 @@ class Handler(BaseHTTPRequestHandler):
         return value
 
     def do_GET(self):  # noqa: N802 - required by BaseHTTPRequestHandler
-        request = urlsplit(self.path)
+        request = urllib.parse.urlsplit(self.path)
         if request.path == "/health" and not request.query:
             self._text(200, "ok\n")
             return
         if request.path == "/" and not request.query:
             self._text(200, f"{BANNER}\n")
             return
-        if request.path == "/referee/evidence":
-            self._evidence(request.query)
-            return
         self._text(404, "not found\n")
 
-    def _evidence(self, query: str) -> None:
-        try:
-            values = parse_qs(query, strict_parsing=True)
-            raw_after = values.get("after", [])
-            if set(values) != {"after"} or len(raw_after) != 1:
-                raise ValueError
-            after = int(raw_after[0])
-            if after < 0:
-                raise ValueError
-        except (TypeError, ValueError):
-            self._json(400, {"error": "after must be one nonnegative integer"})
-            return
-
-        with state_lock:
-            oldest = events[0]["cursor"] if events else next_cursor
-            selected = [
-                event for event in events if int(event["cursor"]) > after
-            ][:MAX_RESPONSE_EVENTS]
-            latest = next_cursor - 1
-        next_value = int(selected[-1]["cursor"]) if selected else after
-        self._json(
-            200,
-            {
-                "activityTarget": ACTIVITY_TARGET,
-                "events": selected,
-                "gap": after + 1 < int(oldest),
-                "hasMore": next_value < latest,
-                "latestCursor": latest,
-                "nextCursor": next_value,
-            },
-        )
-
     def do_POST(self):  # noqa: N802 - required by BaseHTTPRequestHandler
-        request = urlsplit(self.path)
+        request = urllib.parse.urlsplit(self.path)
         if request.query:
             self._json(400, {"error": "query parameters are not accepted"})
             return
@@ -240,7 +318,14 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(token, str) or not TOKEN_PATTERN.fullmatch(token):
             self._json(400, {"error": "invalid current KotH capability"})
             return
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        try:
+            token_hash = authenticate_capability(token)
+        except (OSError, RuntimeError, urllib.error.URLError):
+            self._json(503, {"error": "capability verification is temporarily unavailable"})
+            return
+        if token_hash is None:
+            self._json(403, {"error": "invalid current KotH capability"})
+            return
         timestamp = time.monotonic()
         created_at = now_ms()
         with state_lock:
@@ -342,5 +427,11 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-port = int(os.environ.get("PORT", "8080"))
-ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+def main() -> None:
+    port = int(os.environ.get("PORT", "8080"))
+    start_managed_reporter(read_evidence_page)
+    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+
+
+if __name__ == "__main__":
+    main()

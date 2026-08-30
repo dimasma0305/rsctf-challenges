@@ -1,7 +1,6 @@
-"""Read-only functional checker for the Leaderboard KotH demo."""
+"""Read-only functional checker for the in-target Leaderboard KotH demo."""
 
 from http.client import HTTPConnection, HTTPException
-import json
 import socket
 
 from lib import KothContext, Mumble, Offline, checker, run_koth_checker
@@ -49,33 +48,6 @@ def check_banner(context: KothContext) -> None:
     )
     if http_get(context, "/") != expected_banner:
         raise Mumble("the public hill banner was incorrect")
-
-
-@checker
-def check_evidence_feed(context: KothContext) -> None:
-    try:
-        value = json.loads(http_get(context, "/referee/evidence?after=0"))
-    except json.JSONDecodeError as error:
-        raise Mumble("the evidence endpoint did not return JSON") from error
-    expected = {
-        "activityTarget",
-        "events",
-        "gap",
-        "hasMore",
-        "latestCursor",
-        "nextCursor",
-    }
-    if (
-        not isinstance(value, dict)
-        or set(value) != expected
-        or value["activityTarget"] != 5
-        or not isinstance(value["events"], list)
-        or not isinstance(value["gap"], bool)
-        or not isinstance(value["hasMore"], bool)
-        or not isinstance(value["latestCursor"], int)
-        or not isinstance(value["nextCursor"], int)
-    ):
-        raise Mumble("the evidence endpoint contract changed")
 
 
 if __name__ == "__main__":

@@ -9,13 +9,13 @@ lifecycle.
 For an AI-assisted end-to-end workflow, start with `$rsctf-challenge-design`, implement
 with `$rsctf-challenge-authoring`, prove the intended solve with
 `$rsctf-challenge-solution`, run a fresh blind solve with
-`$rsctf-challenge-playtest`, review it with `$rsctf-playtest-review`, and finish with
-`$rsctf-challenge-release-review`. The repository selects these skills implicitly when a
-request clearly matches one phase.
+`$rsctf-challenge-playtest`, review it through the same skill from the author context, and
+finish with `$rsctf-challenge-release-review`. The repository selects these skills implicitly
+when a request clearly matches one phase.
 
 ## Prerequisites
 
-- Python 3.12 or newer when developing the included services, generators, observers,
+- Python 3.12 or newer when developing the included services, generators, managed reporters,
   or checkers.
 - Docker when building or locally running container challenges.
 - The `rsctf` binary from the matching release for local importer-owned schema and
@@ -36,7 +36,7 @@ Run `make help` at any time to see the supported commands.
 | platform-hosted A&D | `challenges/AD/Pwn/attack-defense-service` | rehearse the full A&D network with two teams |
 | self-hosted/BYOC A&D | `challenges/AD/Web/self-hosted-service` | rehearse the relay and flag delivery |
 | marker KotH | `challenges/Koth/Pwn/king-of-the-hill` | use a tested Docker backend for marker reads |
-| signed-API Leaderboard KotH | `challenges/Koth/Web/api-observed-hill` | deploy and protect the independent referee |
+| managed Leaderboard KotH | `challenges/Koth/Web/managed-leaderboard-hill` | keep reporting beside authoritative gameplay state |
 
 ## Create the package
 
@@ -49,7 +49,6 @@ challenges/<mode>/<category>/<slug>/
 ├── src/                 # trusted local container build context, when applicable
 ├── checker/             # A&D/KotH functional checker, when applicable
 ├── generator/           # deterministic variant generator, when applicable
-├── observer/            # organizer-run referee, when applicable
 └── solution/            # required tracked organizer material
     ├── README.md        # concise writeup
     └── solve.py         # simple reference solver

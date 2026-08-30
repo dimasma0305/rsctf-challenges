@@ -1,4 +1,4 @@
-"""Protocol-neutral, dependency-free helpers for rsctf process checkers.
+"""Protocol-neutral, dependency-free helpers for rsctf challenge checkers.
 
 Network and protocol code belongs in run.py. Copy this file together with
 run.py; Repository Bindings prepares the whole checker directory, so sibling

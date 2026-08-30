@@ -12,8 +12,8 @@ Record these facts before implementation:
 | delivery | `service`, `handout`, `hybrid`, or `byoc` |
 | initial inputs | exact public copy, target shape, files, credentials, and rules |
 | objective | capability or information the player must obtain |
-| flag/control path | static, injected, rotating file, variant, marker, or signed API |
-| runtime owner | rsctf, team BYOC host, independent observer, or none |
+| flag/control path | static, injected, rotating file, variant, marker, or managed Leaderboard evidence |
+| runtime owner | rsctf-managed target, team BYOC host, or none |
 | intended boundaries | ordered identities, trust zones, or technical properties crossed |
 | difficulty target | prerequisite skills and expected active solve-time range |
 | non-goals | features and mechanics intentionally excluded |

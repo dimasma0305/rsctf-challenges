@@ -26,8 +26,8 @@
 - KotH checks do not read or alter the marker/API control source; attribution and scoring use
   the selected frozen source.
 - Deterministic generators build and return byte-identical valid output for identical input.
-- API observers keep secrets/state outside player workloads and fail closed on context/feed
-  errors.
+- Managed Leaderboard reporters keep injected credentials out of player surfaces, submit
+  bounded native evidence rather than points, and fail closed on context/evidence errors.
 - BYOC exercises exact image/setup delivery, relay reachability, flag delivery, resets, and
   team isolation on the intended topology.
 
