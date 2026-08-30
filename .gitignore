@@ -1,6 +1,6 @@
 __pycache__/
 *.py[cod]
-/playtest/
+/.agents/skills/rsctf-challenge-playtest/playtest/
 # Keep the small reviewed solution surface trackable; ignore local scratch by default.
 /challenges/*/*/*/solution/*
 !/challenges/*/*/*/solution/README.md

@@ -13,6 +13,8 @@ file between author, player, runtime, checker, or organizer surfaces for conveni
 ```text
 .
 ├── .agents/                         # automatic AI skill workflows and references
+│   └── skills/rsctf-challenge-playtest/
+│       └── playtest/                # ignored temporary clean-room preparation
 ├── .github/workflows/validate.yml   # official rsctf validation and dynamic builds
 ├── .gzevent                         # one hidden event manifest
 ├── AGENTS.md                        # AI-agent entry point
@@ -22,7 +24,6 @@ file between author, player, runtime, checker, or organizer surfaces for conveni
 │   ├── Jeopardy/<category>/<slug>/
 │   └── Koth/<category>/<slug>/
 ├── docs/                            # human documentation, templates, and images
-├── playtest/                        # ignored temporary clean-room preparation
 └── README.md                        # short repository entry point
 ```
 
@@ -33,6 +34,8 @@ are rejected by the official validator.
 Human maintainer documentation belongs in `docs/`. Agent instructions belong in
 `AGENTS.md` and `.agents/`. The `challenges/` tree contains package inputs, player artifacts,
 and the tracked organizer-only `solution/` material described below.
+The nested playtest directory is ignored temporary run state owned by the playtest skill, not
+a tracked skill asset. Do not commit its reports, inputs, nested Git metadata, or raw evidence.
 
 ## Canonical package layout
 
@@ -377,7 +380,7 @@ Use the exact format and copyable template in [Solutions and reference solvers](
 
 | Evidence | Location | Commit policy |
 | --- | --- | --- |
-| temporary blind-run room and raw captures | `playtest/` | ignored |
+| temporary blind-run room and raw captures | `.agents/skills/rsctf-challenge-playtest/playtest/` | ignored |
 | organizer writeup screenshots | package `solution/assets/` | commit only when referenced, current, and redacted |
 | durable human documentation images | `docs/assets/screenshots/` | commit only when current and useful |
 | player-facing images or files | package `dist/` | committed as part of the exact handout |

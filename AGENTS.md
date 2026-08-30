@@ -73,8 +73,8 @@ known-good solver, build logs, organizer-side container administration, or inher
 author/agent context unless that material is part of the real player delivery. A BYOC
 player receives the exact setup bundle and image and may control only the team-owned
 host and containers that the real event permits.
-`playtest/` is gitignored convenience space, not a sandbox; enforce isolation in the
-runner or use a separate workspace/account.
+The ignored `.agents/skills/rsctf-challenge-playtest/playtest/` room is convenience space,
+not a sandbox; enforce isolation in the runner or use a separate workspace/account.
 
 Screenshots must come from the player-visible route, identity, and build they claim to
 show. Prefer text logs for text protocols. Redact flags and unrelated secrets, and do

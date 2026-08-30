@@ -22,18 +22,21 @@ receives.
 
 ## Create the room
 
-Create the ignored root `playtest/` directory. If it already contains unreviewed work, do not
-replace it without the user's approval; preserve any report the author still needs.
-Instantiate these skill assets:
+Create the ignored `.agents/skills/rsctf-challenge-playtest/playtest/` room. Keep temporary
+run state beside this skill instead of adding a scratch directory at repository root. If the
+room already contains unreviewed work, do not replace it without the user's approval;
+preserve any report the author still needs. The room is temporary run state, not a reusable
+skill asset; never commit it or move its reports into `assets/`.
+Instantiate these skill assets in that room:
 
-- [clean-room-agents.md](assets/clean-room-agents.md) as `playtest/AGENTS.md`;
-- [player-brief.md](assets/player-brief.md) as `playtest/PLAYER-BRIEF.md`; and
-- [playtest-report.md](assets/playtest-report.md) as `playtest/PLAYTEST-REPORT.md`.
+- [clean-room-agents.md](assets/clean-room-agents.md) as `AGENTS.md`;
+- [player-brief.md](assets/player-brief.md) as `PLAYER-BRIEF.md`; and
+- [playtest-report.md](assets/playtest-report.md) as `PLAYTEST-REPORT.md`.
 
-Copy declared handout files to `playtest/inputs/` byte for byte. Do not copy package source,
-`solution/`, the reference solver, repository history, build logs, real flags, earlier reports,
-or undeclared artifacts. Initialize an empty nested Git repository only as an accidental
-history guard; state clearly that it is not a filesystem sandbox.
+Copy declared handout files to the room's `inputs/` directory byte for byte. Do not copy
+package source, `solution/`, the reference solver, repository history, build logs, real flags,
+earlier reports, or undeclared artifacts. Initialize an empty nested Git repository only as an
+accidental history guard; state clearly that it is not a filesystem sandbox.
 
 ## Run blind
 

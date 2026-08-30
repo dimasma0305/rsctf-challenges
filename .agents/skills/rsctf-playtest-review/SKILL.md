@@ -24,9 +24,9 @@ giving the player knowledge they did not have.
 6. Distinguish challenge defects from player mistakes. A missing breadcrumb is a clue defect;
    an outage is an environment defect; complex but evidenced reasoning may support difficulty.
 7. Instantiate [the review template](assets/playtest-review.md) as
-   `playtest/PLAYTEST-REVIEW.md`. Keep player-facing feedback spoiler-free: confirm only what
-   the player demonstrated, identify false beliefs without giving replacements, and request
-   controlled evidence rather than hints.
+   `.agents/skills/rsctf-challenge-playtest/playtest/PLAYTEST-REVIEW.md`. Keep player-facing
+   feedback spoiler-free: confirm only what the player demonstrated, identify false beliefs
+   without giving replacements, and request controlled evidence rather than hints.
 8. Recommend source/copy/artifact changes only when the evidence supports them. Do not
    implement fixes unless the user also asks for changes. Any changed player input requires a
    fresh room and fresh blind run.

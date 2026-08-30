@@ -41,20 +41,21 @@ resolve it with the author instead of choosing the more revealing option.
 
 ## Prepare an isolated room
 
-Use the ignored root `playtest/` directory only as a staging convenience. Copy in
-the public brief and declared handout files, if any. For a managed service, start it
-and retain build logs from the author workspace, outside the room. For BYOC, deliver
-the exact setup bundle and image through the player-visible flow, then let the tester
-operate them on an isolated team-owned host as a real team would. Use a redacted
-playtest flag.
+Use the ignored `.agents/skills/rsctf-challenge-playtest/playtest/` directory only as a
+staging convenience. Keeping the temporary room beside its owning skill avoids a scratch
+directory at repository root. Copy in the public brief and declared handout files, if any.
+For a managed service, start it and retain build logs from the author workspace, outside the
+room. For BYOC, deliver the exact setup bundle and image through the player-visible flow,
+then let the tester operate them on an isolated team-owned host as a real team would. Use a
+redacted playtest flag.
 
 The package-local `solution/` directory, its reference solver, organizer screenshots, and
-verification record are author inputs. They never enter `playtest/`, and the blind solver
-must not inherit a conversation that disclosed them. Read
+verification record are author inputs. They never enter the playtest room, and the blind
+solver must not inherit a conversation that disclosed them. Read
 [Solutions and reference solvers](solutions.md) for the organizer format; use it only before
 or after, never during, the isolated player run.
 
-`playtest/` is not a sandbox. For a credible blind run, give a fresh human account or
+The playtest room is not a sandbox. For a credible blind run, give a fresh human account or
 agent session a separate workspace containing only the prepared room. Do not inherit
 the author conversation, intended chain, prior reports, parent filesystem, Git
 history, organizer-side container administration, process inspection outside the
@@ -151,6 +152,7 @@ For any screenshot you keep:
 - inspect the final image for clipping, stale controls, hidden secrets, and readable
   text before linking it from a guide or report.
 
-Store temporary blind-run captures inside ignored `playtest/evidence/`. Move only
-reviewed, still-current documentation images to `docs/assets/screenshots/`, creating
-that directory when the first useful image exists.
+Store temporary blind-run captures inside ignored
+`.agents/skills/rsctf-challenge-playtest/playtest/evidence/`. Move only reviewed,
+still-current documentation images to `docs/assets/screenshots/`, creating that directory
+when the first useful image exists.
