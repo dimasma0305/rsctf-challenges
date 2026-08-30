@@ -19,9 +19,10 @@ the README instead.
 
 ## Annotated source with freezed
 
-`freezed` renders the real file with syntax highlighting and annotations. Use `--circle` for
-one vulnerable region and repeated `--mark` options for several related regions. Select code
-by quoted text when practical so the command survives harmless line movement.
+`freezed` renders the real file with syntax highlighting and annotations. Use `--arrow` to
+point to a vulnerable region and repeated `--mark` options for a numbered sequence of related
+regions. Select code by quoted text when practical so the command survives harmless line
+movement. The selected source must be inside the range passed to `--lines`.
 
 ```sh
 freezed path/to/source.py \
@@ -32,7 +33,7 @@ freezed path/to/source.py \
   --padding 20 \
   --margin 26 \
   --title 'player-visible/path/to/source.py' \
-  --circle 'vulnerable_call(user_input)' \
+  --arrow 'vulnerable_call(user_input)' \
   -o solution/assets/vuln-input-flow.png
 ```
 

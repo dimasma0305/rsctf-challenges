@@ -109,15 +109,16 @@ freezed path/to/source.py \
   --theme github-dark \
   --padding 20 \
   --margin 26 \
-  --title 'path/to/source.py' \
-  --circle 'vulnerable_call(user_input)' \
+  --title 'player-visible/path/to/source.py' \
+  --arrow 'vulnerable_call(user_input)' \
   -o solution/assets/vuln-input-flow.png
 ```
 
-Use one `--circle` for one region and repeated `--mark` options for several related regions.
-Select code by quoted text when practical. An internal organizer writeup may show author
-source but must label it author-only. A player-facing publication may show only source the
-player receives or earns.
+Use one `--arrow` to point to one region and repeated `--mark` options for a numbered sequence
+of related regions. Select code by quoted text when practical, and keep the selection inside
+the range passed to `--lines`. An internal organizer writeup may show author source but must
+label it author-only. A player-facing publication may show only source the player receives or
+earns.
 
 Open every generated image at readable scale. Check clipping, line visibility, stale source,
 wrong identity, tokens, flags, production hosts, and unrelated personal data. Regenerate it

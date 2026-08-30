@@ -65,8 +65,8 @@ record the capture or `freezed` command. For example:
 
 ```sh
 freezed path/to/source.py --lines 20,45 --show-line-numbers --window \
-  --theme github-dark --title 'path/to/source.py' \
-  --circle 'vulnerable_call(user_input)' \
+  --theme github-dark --title 'player-visible/path/to/source.py' \
+  --arrow 'vulnerable_call(user_input)' \
   -o solution/assets/vuln-input-flow.png
 ```
 

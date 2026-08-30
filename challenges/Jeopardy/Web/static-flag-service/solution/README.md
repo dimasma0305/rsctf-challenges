@@ -48,15 +48,15 @@ implementation but is not used as player discovery evidence.
 
 ![The root handler reads and returns RSCTF_FLAG](assets/vuln-flag-response.png)
 
-- PNG dimensions: `2970x1080`
-- PNG SHA-256: `220e83cd8f10c2b96b157bbfa435ffbd273bfff995c1ee4f690652ba5748aca0`
+- PNG dimensions: `3226x1080`
+- PNG SHA-256: `a9b27235758a32b7cfe289d95f00c5489f0f69faf9ecd4d145796b1b5902be0e`
 
 Reproduce it from the package root:
 
 ```sh
 freezed src/app.py --lines 8,17 --show-line-numbers --window --theme github-dark \
   --padding 20 --margin 26 --title 'src/app.py' \
-  --circle 'flag = os.environ.get("RSCTF_FLAG", "flag-not-injected")' \
+  --arrow 'flag = os.environ.get("RSCTF_FLAG", "flag-not-injected")' \
   -o solution/assets/vuln-flag-response.png
 ```
 
