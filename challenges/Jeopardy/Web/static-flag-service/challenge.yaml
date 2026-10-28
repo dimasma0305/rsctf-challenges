@@ -11,6 +11,10 @@ description: |
 type: StaticContainer
 category: Web
 
+# Optional (rsctf v0.1.148+): Standard, Linear, or Logarithmic.
+# Omission uses Standard on first import and preserves an existing selection.
+# scoreCurve: Standard
+
 flags:
   - "rsctf{static_container_demo_replace_me}"
 

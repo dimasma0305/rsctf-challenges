@@ -9,6 +9,10 @@ description: |
 type: DynamicContainer
 category: Web
 
+# Optional (rsctf v0.1.148+): Standard, Linear, or Logarithmic.
+# Omission uses Standard on first import and preserves an existing selection.
+# scoreCurve: Standard
+
 # The generator expands [TEAM_HASH], [GUID], and [UUID], but current challenge
 # validation expects TEAM_HASH or GUID. TEAM_HASH is stable per team/challenge.
 flagTemplate: "rsctf{dynamic_[TEAM_HASH]}"

@@ -8,6 +8,9 @@ description: |
   resulting flag.
 type: StaticAttachment
 category: Misc
+# Optional (rsctf v0.1.148+): Standard, Linear, or Logarithmic.
+# Omission uses Standard on first import and preserves an existing selection.
+# scoreCurve: Standard
 disableBloodBonus: false
 
 # The scan builds and contract-tests generator/Dockerfile, then stores its

@@ -101,14 +101,15 @@ submission limits rather than accepting a different effective policy.
 
 Use rsctf v0.1.148 or newer for both validation and import. The
 [static handout](../challenges/Jeopardy/Misc/static-handout/challenge.yaml)
-demonstrates a deliberate `Linear` override:
+shows the optional field as a comment, as do all Jeopardy examples:
 
 ```yaml
-scoreCurve: Linear
+# scoreCurve: Standard
 ```
 
-Replace `Linear` with `Standard` for exponential decay or `Logarithmic` for
-logarithmic decay. Names are case-sensitive. `minScoreRate` controls the floor
+All examples use `Standard` exponential decay on first import. To select a curve
+explicitly, uncomment the line and keep `Standard` or choose `Linear` or
+`Logarithmic`. Names are case-sensitive. `minScoreRate` controls the floor
 and `difficulty` controls decay; the example leaves their platform defaults intact.
 These curves do not change A&D or KotH scoring.
 

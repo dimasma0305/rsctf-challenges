@@ -9,9 +9,9 @@ description: |
 type: StaticAttachment
 category: Misc
 
-# Deliberate curve override (rsctf v0.1.148+): Standard, Linear, or Logarithmic.
-# Omit scoreCurve to use Standard on first import or preserve an existing selection.
-scoreCurve: Linear
+# Optional (rsctf v0.1.148+): Standard, Linear, or Logarithmic.
+# Omission uses Standard on first import and preserves an existing selection.
+# scoreCurve: Standard
 # Other omitted scoring fields inherit rsctf's platform defaults.
 disableBloodBonus: false
 

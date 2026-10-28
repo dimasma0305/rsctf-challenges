@@ -11,6 +11,10 @@ description: |
 type: DynamicAttachment
 category: Misc
 
+# Optional (rsctf v0.1.148+): Standard, Linear, or Logarithmic.
+# Omission uses Standard on first import and preserves an existing selection.
+# scoreCurve: Standard
+
 hints:
   - "Do not enable this example on the current importer."
 
