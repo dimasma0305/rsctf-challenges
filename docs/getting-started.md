@@ -20,7 +20,7 @@ when a request clearly matches one phase.
 - Docker when building or locally running container challenges.
 - The `rsctf` binary from the matching release for local importer-owned schema and
   semantic validation and container discovery. GitHub Actions obtains it through the
-  reusable rsctf action.
+  reusable rsctf action. These examples require v0.1.148 or newer for `scoreCurve`.
 
 Run `make help` at any time to see the supported commands.
 
@@ -71,7 +71,9 @@ Then make these edits:
 1. Change the directory slug and the manifest's `name`, `author`, description,
    category, and only the fields required by this challenge type. Leave
    `minScoreRate`, `difficulty`, and `submissionLimit` absent to inherit rsctf's
-   defaults; add them only for a deliberate event-specific override.
+   defaults; add them only for a deliberate event-specific override. The static
+   handout deliberately sets `scoreCurve: Linear`; remove that key to use `Standard`
+   on first import, or choose one of the [supported curves](configuration.md#jeopardy-score-curves).
 2. Replace the demo service or handout. Delete copied components the challenge does
    not use; do not keep placeholder code.
 3. Replace every demo flag. For dynamic services, keep the injected flag contract
@@ -158,10 +160,11 @@ Repository Bindings finds the root `.gzevent` and recursively imports all
 organizational layer. This example deliberately creates a hidden event and every
 challenge starts disabled.
 
-A rescan preserves the game row but deletes and recreates the challenges owned by
-that event directory. Challenge IDs and challenge-level admin edits can therefore
-change. Treat Git as the source of truth, and rehearse rescans on staging rather
-than during a live event.
+A rescan preserves the game row and updates challenges by binding-relative manifest
+path, retaining their IDs and solve/scoring history. Explicit Git fields can replace
+unlocked challenge settings; an omitted `scoreCurve` preserves the saved selection.
+Read the [rescan rules](importing.md#rescans-preserve-challenge-identity) and rehearse
+changes on staging before a live event.
 
 All committed flags are public. Replacing a value in the latest commit does not
 erase it from Git history; rotate any value that was ever pushed.

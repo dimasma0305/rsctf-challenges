@@ -95,9 +95,9 @@ for the organizer reference solver and must not enter `dist/`.
 - Use descriptive lowercase filenames inside a package. Follow the language ecosystem
   only where casing is meaningful.
 
-Renaming a package path does not preserve an imported challenge row. A rescan recreates
-challenge records, so coordinate path or display-name changes with staging and any
-automation that records challenge IDs.
+Rescans match challenges by binding-relative manifest path and update them in place.
+Renaming that path does not preserve identity, so rehearse path changes on staging
+and review any automation that records challenge IDs. See [rescan behavior](importing.md#rescans-preserve-challenge-identity).
 
 ## Minimal layout by challenge type
 
@@ -261,6 +261,9 @@ remove inapplicable keys. Do not invent metadata aliases or CI-only fields.
 - Omit `minScoreRate`, `difficulty`, and `submissionLimit` to inherit rsctf's current
   defaults. Add them only for a reviewed Jeopardy scoring override. They do not apply to
   A&D or KotH scoring.
+- Set `scoreCurve` only for a deliberate Jeopardy curve selection. Omission uses
+  `Standard` on creation and preserves the saved curve on rescan. The static handout
+  demonstrates `Linear`; see [score curves](configuration.md#jeopardy-score-curves).
 - Use `flags` only for supported Jeopardy static flag rows. Use `flagTemplate` only for
   dynamic containers. A&D uses its fixed per-round grammar, while KotH uses its
   control-source contract instead of flags.
