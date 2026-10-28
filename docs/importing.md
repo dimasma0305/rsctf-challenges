@@ -75,15 +75,22 @@ Before enabling a locally built service, inspect its build log and immutable ima
 identity, then test its port, resource limits, writable paths, flag delivery, and
 restart behavior through the actual backend.
 
-## Rescans are destructive to challenge rows
+## Rescans preserve challenge identity
 
-A rescan preserves the game row and operator-edited game settings, but clears and
-recreates the challenges owned by this `.gzevent`. Challenge IDs and challenge-level
-Admin edits can change. Git is the source of truth for challenge configuration.
+A rescan preserves the game row and operator-edited game settings. Challenges are
+matched by binding-relative manifest path and updated in place, retaining IDs and
+solve/scoring history. Explicit Git fields can replace unlocked challenge settings;
+an omitted or null `scoreCurve` preserves the saved curve. Once the event starts or
+submission/solve history exists, scoring changes are deferred instead of rewriting
+competition history. See [score curves](configuration.md#jeopardy-score-curves).
+
+Keep manifest paths stable. Missing played manifests are retained as disabled
+tombstones or rejected while event state still depends on them; they are not silently
+cascade-deleted. A path rename is not an identity-preserving update.
 
 Never casually rescan a running event. Rehearse the exact rescan on staging, account
 for any IDs used by external automation, and confirm that all rebuilt services,
-checkers, variants, and managed reporters still refer to the new imported challenge records.
+checkers, variants, and managed reporters still refer to the intended challenge records.
 
 Event settings from `.gzevent` seed the game on its first import. Later scans preserve
 operator changes such as the real schedule, which is why Git and Admin state must both

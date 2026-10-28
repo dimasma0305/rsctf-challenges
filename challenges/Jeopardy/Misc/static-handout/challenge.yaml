@@ -9,7 +9,10 @@ description: |
 type: StaticAttachment
 category: Misc
 
-# Omitted scoring fields inherit rsctf's platform defaults.
+# Deliberate curve override (rsctf v0.1.148+): Standard, Linear, or Logarithmic.
+# Omit scoreCurve to use Standard on first import or preserve an existing selection.
+scoreCurve: Linear
+# Other omitted scoring fields inherit rsctf's platform defaults.
 disableBloodBonus: false
 
 hints:

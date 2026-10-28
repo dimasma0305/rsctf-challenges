@@ -68,6 +68,10 @@ references merely because they exist.
 - Omit `minScoreRate`, `difficulty`, and `submissionLimit` when rsctf's current
   Jeopardy defaults are intended. Add them only for a deliberate scoring-policy
   override, and omit them from A&D and KotH manifests.
+- Use `scoreCurve` for a deliberate Jeopardy curve override on rsctf v0.1.148+.
+  Accepted values are `Standard`, `Linear`, and `Logarithmic`; omission preserves an
+  existing selection and defaults new challenges to `Standard`. The static handout
+  demonstrates `Linear`. Follow the manifest reference for scoring locks and export.
 - Set `ad.allowEgress: true` for managed A&D and KotH packages in this repository so
   copied targets can reach the internet. Use `false` only for a deliberate reviewed
   isolation requirement; it does not control BYOC-host networking.

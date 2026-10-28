@@ -24,7 +24,8 @@ The category directory must be one of `Misc`, `Crypto`, `Pwn`, `Web`,
 ## Event manifest
 
 Event settings seed a game only on its first import. A rescan preserves later
-game-level edits made in Admin, but deletes and recreates its challenges.
+game-level edits made in Admin and updates challenges in place by binding-relative
+manifest path. See [rescan behavior](importing.md#rescans-preserve-challenge-identity).
 
 | `.gzevent` key | Default | Notes |
 | --- | --- | --- |
@@ -70,6 +71,7 @@ See [`.gzevent`](../.gzevent) for a safe staging configuration.
 | `description` | empty | Markdown/HTML challenge text |
 | `type` | required | A supported type shown in the copyable-examples table below |
 | `category` | inferred/`Misc` | Explicit category should match its directory |
+| `scoreCurve` | `Standard` on creation; existing selection on rescan | Jeopardy only: `Standard`, `Linear`, or `Logarithmic`; supported since rsctf v0.1.148 |
 | `minScoreRate` | `0.01` | Dynamic-score floor: 10 points from the default 1000, validated in `0..1` |
 | `difficulty` | `5` | Positive dynamic-score decay factor |
 | `submissionLimit` | `0` | `0` means no explicit attempt limit |
@@ -95,11 +97,39 @@ importer, the offline CLI reports unknown keys so a typo cannot silently turn in
 omitted setting. It also rejects non-finite/out-of-range scoring values and negative
 submission limits rather than accepting a different effective policy.
 
-Do not add `value`: the repository importer always creates a 1000-point Standard
-challenge and ignores unknown keys. Only `minScoreRate` and `difficulty` control
-the imported jeopardy score curve. Other misleading, ignored keys include
-`scoreCurve`, `originalScore`, `deadline`, `networkMode`, `isEnabled`, and
-`adScoringWeight`.
+### Jeopardy score curves
+
+Use rsctf v0.1.148 or newer for both validation and import. The
+[static handout](../challenges/Jeopardy/Misc/static-handout/challenge.yaml)
+demonstrates a deliberate `Linear` override:
+
+```yaml
+scoreCurve: Linear
+```
+
+Replace `Linear` with `Standard` for exponential decay or `Logarithmic` for
+logarithmic decay. Names are case-sensitive. `minScoreRate` controls the floor
+and `difficulty` controls decay; the example leaves their platform defaults intact.
+These curves do not change A&D or KotH scoring.
+
+The compatibility key `ScoreCurve` is also accepted. Use only one spelling;
+exports always write `scoreCurve`, including an explicit `Standard` selection.
+Invalid values fail validation and import. Omitting the field or setting it to
+`null` uses `Standard` for a new challenge and preserves an existing curve,
+including an Admin selection. To reset an existing curve before scoring is locked,
+write `scoreCurve: Standard` explicitly.
+
+Choose the curve before the event starts. Once the event starts or the challenge
+has submission/solve history, a rescan preserves locked scoring and reports a
+requested curve change as a deferred grading update.
+
+Do not add `value` or `originalScore`: new imported challenges start at 1000 points;
+those keys are not supported. Other unsupported keys include `deadline`,
+`networkMode`, `isEnabled`, and `adScoringWeight`. The compatibility importer ignores
+unknown keys, while `rsctf challenge check` rejects them. Before v0.1.148,
+`scoreCurve` was also unknown, so upgrade before copying this example.
+
+### Provenance policy
 
 With `variantMode: PerParticipation`, omit both image fields and include a
 regular `generator/Dockerfile`; a trusted scan builds and checks it
