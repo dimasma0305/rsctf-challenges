@@ -262,8 +262,8 @@ remove inapplicable keys. Do not invent metadata aliases or CI-only fields.
   defaults. Add them only for a reviewed Jeopardy scoring override. They do not apply to
   A&D or KotH scoring.
 - Set `scoreCurve` only for a deliberate Jeopardy curve selection. Omission uses
-  `Standard` on creation and preserves the saved curve on rescan. The static handout
-  demonstrates `Linear`; see [score curves](configuration.md#jeopardy-score-curves).
+  `Standard` on creation and preserves the saved curve on rescan. Keep the examples'
+  `# scoreCurve: Standard` commented out by default; see [score curves](configuration.md#jeopardy-score-curves).
 - Use `flags` only for supported Jeopardy static flag rows. Use `flagTemplate` only for
   dynamic containers. A&D uses its fixed per-round grammar, while KotH uses its
   control-source contract instead of flags.

@@ -41,7 +41,7 @@ them and never expose them to a blind solver.
 - Keep default scoring fields absent from example manifests so rsctf remains the
   source of truth. Add `minScoreRate`, `difficulty`, or `submissionLimit` only for a
   deliberate Jeopardy override; never add them to A&D or KotH. `scoreCurve` is
-  supported in rsctf v0.1.148+: the static handout deliberately demonstrates `Linear`.
+  supported in rsctf v0.1.148+: keep `# scoreCurve: Standard` commented out in examples.
   Omission defaults new challenges to `Standard` and preserves existing curves.
 - Keep container build input in the package's `src/` directory. Omit
   `containerImage` when demonstrating trusted Repository Bindings source builds.

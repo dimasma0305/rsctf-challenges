@@ -71,9 +71,10 @@ Then make these edits:
 1. Change the directory slug and the manifest's `name`, `author`, description,
    category, and only the fields required by this challenge type. Leave
    `minScoreRate`, `difficulty`, and `submissionLimit` absent to inherit rsctf's
-   defaults; add them only for a deliberate event-specific override. The static
-   handout deliberately sets `scoreCurve: Linear`; remove that key to use `Standard`
-   on first import, or choose one of the [supported curves](configuration.md#jeopardy-score-curves).
+   defaults; add them only for a deliberate event-specific override. All Jeopardy
+   examples leave `# scoreCurve: Standard` commented out and use `Standard` on first
+   import. Uncomment it only to select a [curve](configuration.md#jeopardy-score-curves)
+   explicitly; omission on rescan preserves the saved selection.
 2. Replace the demo service or handout. Delete copied components the challenge does
    not use; do not keep placeholder code.
 3. Replace every demo flag. For dynamic services, keep the injected flag contract
