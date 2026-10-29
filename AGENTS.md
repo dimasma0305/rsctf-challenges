@@ -45,6 +45,10 @@ them and never expose them to a blind solver.
   Omission defaults new challenges to `Standard` and preserves existing curves.
 - Keep container build input in the package's `src/` directory. Omit
   `containerImage` when demonstrating trusted Repository Bindings source builds.
+- Keep Docker as the default in managed service examples. Leave optional
+  `container.runtimeProfile` selections commented; Kubernetes/Kata opt-ins need
+  rsctf v0.1.151+, configured profiles and immutable registry images. Do not add
+  runtime profiles to attachments or BYOC manifests.
 - Do not hand-edit container matrices. Direct package `src/Dockerfile` and
   `generator/Dockerfile` paths are discovered by `rsctf challenge matrix`. Every
   long-running service image must declare a meaningful Docker `HEALTHCHECK`; CI

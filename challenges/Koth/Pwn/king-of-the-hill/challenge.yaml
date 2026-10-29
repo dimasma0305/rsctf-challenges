@@ -14,6 +14,11 @@ category: Pwn
 disableBloodBonus: true
 
 container:
+  # Docker is the default. Select a configured profile before official scoring.
+  # Kubernetes/MicroVM require rsctf v0.1.151+ and an immutable registry image.
+  # runtimeProfile: docker
+  # runtimeProfile: kubernetes
+  # runtimeProfile: microvm
   # containerImage is intentionally omitted. Repository Bindings auto-builds
   # ./src/Dockerfile, which creates the shared writable /koth marker directory.
   memoryLimit: 64
