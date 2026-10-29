@@ -18,6 +18,11 @@ category: Web
 flagTemplate: "rsctf{dynamic_[TEAM_HASH]}"
 
 container:
+  # Docker is the default. Optional named profiles require rsctf v0.1.151+.
+  # Configure the profile and publish an immutable registry image before opting in.
+  # runtimeProfile: docker
+  # runtimeProfile: kubernetes
+  # runtimeProfile: microvm
   # containerImage is intentionally omitted. Repository Bindings auto-builds
   # ./src/Dockerfile, whose app follows the RSCTF_FLAG contract.
   memoryLimit: 64

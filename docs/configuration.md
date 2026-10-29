@@ -169,6 +169,7 @@ is intentionally part of the public challenge contract.
 | Key | Behavior |
 | --- | --- |
 | `containerImage` | Omit to build `src/Dockerfile` (then package-root `Dockerfile`); a concrete reference switches to registry pull/pin behavior |
+| `runtimeProfile` | Optional administrator-configured profile ID (rsctf v0.1.151+); omitted for the default Docker examples; `null` explicitly resets a saved selection to the deployment default |
 | `flagTemplate` | Container-local `DynamicContainer` override; omit it for A&D and KotH |
 | `memoryLimit` | Memory limit in MiB; defaults to 64 for Jeopardy/KotH and 256 for managed A&D |
 | `cpuCount` | Backend-specific CPU limit; use `1` for the portable examples |
@@ -181,6 +182,47 @@ This repository deliberately omits every `containerImage`, so Repository
 Bindings builds the checked-in source. Local archive builds require the Docker
 backend and one daemon shared by the builder and container owner. Kubernetes or
 independent node-local daemons need a prebuilt immutable registry image instead.
+
+### Docker, Kubernetes and MicroVM selection
+
+Docker remains the default for these examples. Keep `RSCTF_CONTAINER_BACKEND=docker`
+on the deployment that builds and runs their source images. All optional profile
+lines stay commented, so copying an example does not opt into Kubernetes or a VM:
+
+```yaml
+container:
+  # runtimeProfile: docker
+  # runtimeProfile: kubernetes
+  # runtimeProfile: microvm
+  # containerImage: ghcr.io/your-org/challenge@sha256:<64-hex-digest>
+  memoryLimit: 256
+  cpuCount: 1
+  exposePort: 8080
+```
+
+To opt in, uncomment exactly one `runtimeProfile` line and set `containerImage`
+to your published immutable registry digest. IDs must match the deployment's
+`RSCTF_RUNTIME_PROFILES` configuration; they are not arbitrary runtime commands.
+The administrator configures `docker` for Docker, `kubernetes` for ordinary Pods,
+and `microvm` for Kubernetes with a Kata RuntimeClass. MicroVM nodes need KVM and
+Kata installed; a YAML selection does not install either. See the platform's
+[runtime profile setup](https://github.com/dimasma0305/rsctf/blob/main/docs/deploy/runtime-profiles.md).
+
+On first import, omission uses the deployment default (Docker here). On rescan,
+omission preserves the saved profile, including an Admin selection. Use
+`runtimeProfile: null` to return a disabled challenge to the deployment default.
+Unknown profile IDs fail import. Repository push-back and game archives retain
+the selected profile.
+
+Rescans preserve enabled runtime definitions and report a requested switch as
+deferred. To move a live challenge, use the Admin runtime selector and explicit
+**Save and replace instances** confirmation. Replacement loses writable instance
+files, preserves scores and submissions, and routes cleanup through the original
+runtime. A&D/KotH switches are locked after official scoring begins; their selected
+backend must also match the deployment's VPN backend when VPN is enabled.
+Disable Docker-only packet capture before selecting Kubernetes or MicroVM.
+Profiles do not apply to attachment challenges, BYOC services or aggregate worker
+definitions.
 
 Every long-running example image includes a Docker `HEALTHCHECK` against its normal
 service protocol. This helps local Docker and CI detect a process that is running but

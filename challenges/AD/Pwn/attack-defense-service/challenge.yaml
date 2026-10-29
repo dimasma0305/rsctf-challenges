@@ -19,6 +19,11 @@ disableBloodBonus: true
 # grammar. Unlike DynamicContainer, this mode does not accept a flag template.
 
 container:
+  # Docker is the default. Select a configured profile before official scoring.
+  # Kubernetes/MicroVM require rsctf v0.1.151+ and an immutable registry image.
+  # runtimeProfile: docker
+  # runtimeProfile: kubernetes
+  # runtimeProfile: microvm
   # containerImage is intentionally omitted. Repository Bindings auto-builds
   # ./src/Dockerfile when this challenge is imported.
   memoryLimit: 64

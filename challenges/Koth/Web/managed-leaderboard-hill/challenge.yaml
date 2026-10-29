@@ -25,6 +25,11 @@ category: Web
 disableBloodBonus: true
 
 container:
+  # Docker is the default. Select a configured profile before official scoring.
+  # Kubernetes/MicroVM require rsctf v0.1.151+ and an immutable registry image.
+  # runtimeProfile: docker
+  # runtimeProfile: kubernetes
+  # runtimeProfile: microvm
   memoryLimit: 64
   cpuCount: 1
   exposePort: 8080

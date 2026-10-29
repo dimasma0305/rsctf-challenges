@@ -19,6 +19,11 @@ flags:
   - "rsctf{static_container_demo_replace_me}"
 
 container:
+  # Docker is the default. Optional named profiles require rsctf v0.1.151+.
+  # Configure the profile and publish an immutable registry image before opting in.
+  # runtimeProfile: docker
+  # runtimeProfile: kubernetes
+  # runtimeProfile: microvm
   # containerImage is intentionally omitted. Repository Bindings auto-builds
   # ./src/Dockerfile and records the resulting immutable local image.
   memoryLimit: 64

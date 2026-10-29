@@ -18,6 +18,7 @@ disableBloodBonus: true
 # grammar. The BYOC relay writes that value to /shared/flag.
 
 container:
+  # runtimeProfile does not apply to BYOC: the team owns this service's runtime.
   # containerImage is intentionally omitted. Repository Bindings builds ./src,
   # and the authenticated BYOC image endpoint streams that result to each team.
   # Resource policies are intentionally absent: rsctf cannot constrain the
