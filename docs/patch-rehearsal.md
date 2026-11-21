@@ -55,3 +55,14 @@ checker rejects another team's flag and its own previous-round flag.
 The four-hour staging exercise also
 needs the deployed platform, its runtimes, team VPN connections and scoring.
 Record the actual elapsed time and measurements separately.
+
+### Check Kubernetes storage
+
+On a disposable Docker host with Kind v0.32.0 and kubectl, run
+`python3 tools/ad-patch-rehearsal/test_kubernetes.py`. It creates a temporary
+single-node cluster with its own kubeconfig. The order-total fixture loses
+its SQLite installation ID when a replacement Pod starts without a claim.
+The test then gives each of two teams a separate claim and checks the ID,
+Service address, flag and application behavior across two repairs, rollback
+to the previous repair and rollback to the starter. This exercises Kubernetes
+storage directly. Player activation through RSCTF needs its own runtime test.

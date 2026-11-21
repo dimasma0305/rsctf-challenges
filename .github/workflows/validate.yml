@@ -14,6 +14,21 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  kubernetes-patch-storage:
+    name: Rehearse Kubernetes team storage and rollback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install Kind and exercise the hosted fixture
+        run: |
+          curl -fsSL https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64 -o "$RUNNER_TEMP/kind"
+          echo "50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54  $RUNNER_TEMP/kind" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/kind"
+          PATH="$RUNNER_TEMP:$PATH" python3 tools/ad-patch-rehearsal/test_kubernetes.py
+
   manifests:
     name: Validate manifests
     runs-on: ubuntu-latest
