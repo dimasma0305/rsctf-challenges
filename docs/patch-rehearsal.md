@@ -32,6 +32,8 @@ Run `python3 tools/ad-patch-rehearsal/test_rehearsal.py` for a short local
 check of all five starters and repairs. Run
 `python3 tools/ad-patch-rehearsal/test_docker.py` on a disposable Docker host
 to start 25 containers concurrently and run 50 checker passes over two flag
-rotations. The four-hour staging exercise also
+rotations. CI runs the same five-team check. It also verifies that each
+checker rejects another team's flag and its own previous-round flag.
+The four-hour staging exercise also
 needs the deployed platform, its runtimes, team VPN connections and scoring.
 Record the actual elapsed time and measurements separately.

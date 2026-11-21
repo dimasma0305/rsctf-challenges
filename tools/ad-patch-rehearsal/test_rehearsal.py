@@ -28,10 +28,10 @@ def service(src, flag_path):
             proc.kill()
 
 
-def verdict(checker, port, flag):
+def verdict(checker, port, flag, *, challenge_id=1, team_id=1, round_number=1):
     env = {**os.environ, "RSCTF_ACTION": "check", "RSCTF_TARGET_IP": "127.0.0.1",
-           "RSCTF_TARGET_PORT": str(port), "RSCTF_CHALLENGE_ID": "1", "RSCTF_TEAM_ID": "1",
-           "RSCTF_ROUND": "1", "RSCTF_FLAG": flag}
+           "RSCTF_TARGET_PORT": str(port), "RSCTF_CHALLENGE_ID": str(challenge_id),
+           "RSCTF_TEAM_ID": str(team_id), "RSCTF_ROUND": str(round_number), "RSCTF_FLAG": flag}
     return subprocess.run([sys.executable, "-B", checker], env=env, timeout=8,
                           capture_output=True).returncode
 
