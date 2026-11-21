@@ -31,6 +31,21 @@ jobs:
         id: rsctf
         uses: dimasma0305/rsctf@main
 
+      - name: Exercise the five hosted patch fixtures
+        run: |
+          python3 tools/ad-patch-rehearsal/test_rehearsal.py
+          python3 tools/ad-patch-rehearsal/test_docker.py --teams 1
+
+      - name: Generate private rehearsal event
+        run: |
+          python3 tools/ad-patch-rehearsal/generate.py "$RUNNER_TEMP/patch-rehearsal"
+          mv "$RUNNER_TEMP/patch-rehearsal/repository" rehearsal-event
+
+      - name: Validate generated rehearsal manifests
+        uses: dimasma0305/rsctf@main
+        with:
+          path: rehearsal-event
+
   containers:
     name: Build ${{ matrix.name }}
     needs: manifests
