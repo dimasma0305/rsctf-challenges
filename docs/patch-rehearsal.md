@@ -36,8 +36,10 @@ Before activating a revision, record the 32-character response from
 `GET /installation` on each team endpoint. The service stores this identifier
 in SQLite under `/var/lib/rehearsal`. Each team and challenge should have a
 different value. Read it again after activation, a failed build, and each
-rollback. Any change means the replacement lost the team's data. Configure
-the runtime to keep that directory with the team service across replacements.
+rollback. Any change means the replacement lost the team's data. On Docker,
+the image creates a separate volume for this directory on each fresh service.
+To preserve it across replacements, attach the same team's data volume to
+the replacement. Deliver its current flag separately.
 
 The service Dockerfiles pin the same Python base by digest. For the offline
 patch worker, supply that base as an approved Linux amd64 OCI archive and

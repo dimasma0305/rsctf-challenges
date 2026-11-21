@@ -45,13 +45,20 @@ def check(teams):
             docker("build", "--network=none", "-t", image, pkg / "src")
             cleanup.callback(docker, "image", "rm", image)
             for team in range(1, teams + 1):
-                container, port = start_service(cleanup, image, "--mount", "type=volume,target=/var/lib/rehearsal")
+                container, port = start_service(cleanup, image)
                 services[challenge, team] = (container, port, pkg / "checker/run.py")
         deadline = time.monotonic() + 75
         installations = {}
+        volumes = {}
         for key, (container, port, _) in services.items():
             wait_healthy(container, deadline)
             installations[key] = installation_id(port)
+            mounts = json.loads(docker("inspect", "--format", "{{json .Mounts}}", container))
+            if len(mounts) != 1 or mounts[0]["Type"] != "volume" or mounts[0]["Destination"] != "/var/lib/rehearsal":
+                raise RuntimeError(f"unexpected default service mounts for challenge/team {key}")
+            volumes[key] = mounts[0]["Name"]
+        if len(set(volumes.values())) != len(services):
+            raise RuntimeError("services shared a Docker data volume")
         if len(set(installations.values())) != len(services):
             raise RuntimeError("services shared an installation ID")
         checks = 0
@@ -83,13 +90,15 @@ def check(teams):
         original = services[1, 1][0]
         docker("stop", "-t", "1", original)
         image = docker("inspect", "--format", "{{.Image}}", original)
-        replacement, port = start_service(cleanup, image, "--volumes-from", original)
+        replacement, port = start_service(cleanup, image, "--mount",
+                                          f"type=volume,source={volumes[1, 1]},target=/var/lib/rehearsal")
         wait_healthy(replacement, time.monotonic() + 30)
         if installation_id(port) != installations[1, 1]:
             raise RuntimeError("the replacement lost the original team's data")
+        docker("exec", replacement, "test", "!", "-s", "/flag")
         print(json.dumps({"teams": teams, "healthyContainers": len(services), "successfulChecks": checks,
                           "expectedFlagMismatches": rejected, "distinctInstallations": len(services),
-                          "replacementPreservedData": True}))
+                          "distinctDataVolumes": len(set(volumes.values())), "replacementPreservedData": True}))
 
 
 if __name__ == "__main__":
