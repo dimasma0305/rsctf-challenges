@@ -10,11 +10,27 @@ import time
 import uuid
 
 from generate import EXERCISES, generate
-from test_rehearsal import verdict
+from test_rehearsal import installation_id, verdict
 
 
 def docker(*args):
     return subprocess.check_output(["docker", *args], text=True, timeout=180).strip()
+
+
+def start_service(cleanup, image, *storage):
+    container = docker("run", "-d", "--cap-drop=ALL", "--security-opt=no-new-privileges",
+                       "--cpus=1", "--memory=64m", "--pids-limit=32",
+                       *storage, "-p", "127.0.0.1::8080", image)
+    cleanup.callback(docker, "rm", "-fv", container)
+    port = int(docker("port", container, "8080/tcp").rsplit(":", 1)[1])
+    return container, port
+
+
+def wait_healthy(container, deadline):
+    while docker("inspect", "--format", "{{.State.Health.Status}}", container) != "healthy":
+        if time.monotonic() >= deadline:
+            raise RuntimeError("service health check timed out")
+        time.sleep(1)
 
 
 def check(teams):
@@ -29,18 +45,15 @@ def check(teams):
             docker("build", "--network=none", "-t", image, pkg / "src")
             cleanup.callback(docker, "image", "rm", image)
             for team in range(1, teams + 1):
-                container = docker("run", "-d", "--cap-drop=ALL", "--security-opt=no-new-privileges",
-                                   "--cpus=1", "--memory=64m", "--pids-limit=32",
-                                   "-p", "127.0.0.1::8080", image)
-                cleanup.callback(docker, "rm", "-fv", container)
-                port = int(docker("port", container, "8080/tcp").rsplit(":", 1)[1])
+                container, port = start_service(cleanup, image, "--mount", "type=volume,target=/var/lib/rehearsal")
                 services[challenge, team] = (container, port, pkg / "checker/run.py")
         deadline = time.monotonic() + 75
-        for container, _, _ in services.values():
-            while docker("inspect", "--format", "{{.State.Health.Status}}", container) != "healthy":
-                if time.monotonic() >= deadline:
-                    raise RuntimeError("service health check timed out")
-                time.sleep(1)
+        installations = {}
+        for key, (container, port, _) in services.items():
+            wait_healthy(container, deadline)
+            installations[key] = installation_id(port)
+        if len(set(installations.values())) != len(services):
+            raise RuntimeError("services shared an installation ID")
         checks = 0
         rejected = 0
         flags = {}
@@ -67,8 +80,16 @@ def check(teams):
                     if verdict(checker, port, wrong_flag, **ctx) != 1:
                         raise RuntimeError(f"expected a flag mismatch for challenge {challenge}, team {team}")
                     rejected += 1
+        original = services[1, 1][0]
+        docker("stop", "-t", "1", original)
+        image = docker("inspect", "--format", "{{.Image}}", original)
+        replacement, port = start_service(cleanup, image, "--volumes-from", original)
+        wait_healthy(replacement, time.monotonic() + 30)
+        if installation_id(port) != installations[1, 1]:
+            raise RuntimeError("the replacement lost the original team's data")
         print(json.dumps({"teams": teams, "healthyContainers": len(services), "successfulChecks": checks,
-                          "expectedFlagMismatches": rejected}))
+                          "expectedFlagMismatches": rejected, "distinctInstallations": len(services),
+                          "replacementPreservedData": True}))
 
 
 if __name__ == "__main__":

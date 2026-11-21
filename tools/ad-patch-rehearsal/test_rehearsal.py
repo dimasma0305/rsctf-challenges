@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import select
 import subprocess
@@ -17,8 +18,9 @@ from generate import EXERCISES, generate
 
 
 @contextmanager
-def service(src, flag_path):
-    env = {**os.environ, "BIND": "127.0.0.1", "PORT": "0", "RSCTF_FLAG_FILE": str(flag_path)}
+def service(src, flag_path, state_dir):
+    env = {**os.environ, "BIND": "127.0.0.1", "PORT": "0", "RSCTF_FLAG_FILE": str(flag_path),
+           "REHEARSAL_DATA_DIR": str(state_dir)}
     with subprocess.Popen([sys.executable, "-B", "server.py"], cwd=src, env=env,
                           stdout=subprocess.PIPE, text=True) as proc:
         try:
@@ -27,6 +29,14 @@ def service(src, flag_path):
             yield int(proc.stdout.readline())
         finally:
             proc.kill()
+
+
+def installation_id(port):
+    with urlopen(f"http://127.0.0.1:{port}/installation", timeout=2) as response:
+        marker = response.read(33)
+    if not re.fullmatch(b"[0-9a-f]{32}", marker):
+        raise ValueError("service returned an invalid installation ID")
+    return marker
 
 
 def verdict(checker, port, flag, *, challenge_id=1, team_id=1, round_number=1):
@@ -48,6 +58,9 @@ class Rehearsal(unittest.TestCase):
                     zips = root / "event/patches" / case.name
                     flag_file = root / "current-flag"
                     first, second = (f"flag{{{secrets.token_hex(16)}}}" for _ in range(2))
+                    state_dir = root / case.name / "team-data"
+                    state_dir.mkdir(parents=True)
+                    installation = None
                     for version in ("starter", "patched", "patched-v2"):
                         src = root / case.name / version
                         with zipfile.ZipFile(zips / f"{version}.zip") as archive:
@@ -55,7 +68,10 @@ class Rehearsal(unittest.TestCase):
                             archive.extractall(src)
                         self.assertTrue((src / "Dockerfile").read_text().startswith("FROM rsctf-starter\n"))
                         flag_file.write_text(first)
-                        with service(src, flag_file) as port:
+                        with service(src, flag_file, state_dir) as port:
+                            if installation is None:
+                                installation = installation_id(port)
+                            self.assertEqual(installation_id(port), installation)
                             checker = pkg / "checker/run.py"
                             self.assertEqual(verdict(checker, port, first), 0)
                             flag_file.write_text(second)
@@ -74,6 +90,13 @@ class Rehearsal(unittest.TestCase):
                                 with urlopen(null_request, timeout=2) as response:
                                     self.assertEqual(json.load(response), case.null_result)
                         self.assertEqual(verdict(checker, port, second), 2)
+                    for rollback in ("patched", "starter"):
+                        with service(root / case.name / rollback, flag_file, state_dir) as port:
+                            self.assertEqual(installation_id(port), installation)
+                    fresh = root / case.name / "another-team"
+                    fresh.mkdir()
+                    with service(src, flag_file, fresh) as port:
+                        self.assertNotEqual(installation_id(port), installation)
 
 
 if __name__ == "__main__":

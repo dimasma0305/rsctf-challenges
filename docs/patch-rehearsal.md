@@ -32,6 +32,13 @@ the original edge case fails again. For example, an empty order returns
 `0` on either repair and `null` on the starter. Check through the same team
 endpoint after each change.
 
+Before activating a revision, record the 32-character response from
+`GET /installation` on each team endpoint. The service stores this identifier
+in SQLite under `/var/lib/rehearsal`. Each team and challenge should have a
+different value. Read it again after activation, a failed build, and each
+rollback. Any change means the replacement lost the team's data. Configure
+the runtime to keep that directory with the team service across replacements.
+
 The service Dockerfiles pin the same Python base by digest. For the offline
 patch worker, supply that base as an approved Linux amd64 OCI archive and
 select its manifest digest. The ZIP Dockerfiles reference it as
