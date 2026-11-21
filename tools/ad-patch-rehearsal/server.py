@@ -44,7 +44,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(400, b"")
             value = json.loads(self.rfile.read(size))
             result = json.dumps(evaluate(value)).encode()
-        except (TypeError, ValueError, RecursionError):
+        except (AttributeError, TypeError, ValueError, RecursionError):
             return self.reply(400, b"")
         self.reply(200, result)
 

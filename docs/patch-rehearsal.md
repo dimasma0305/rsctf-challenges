@@ -21,7 +21,16 @@ window, approve five teams with four accounts each, and keep the separate
 | --- | --- |
 | `starter.zip` | Register as the team's original source. |
 | `patched.zip` | Save and build the one-file fix. |
+| `patched-v2.zip` | Apply a second fix that also accepts JSON `null`. |
 | `failed-build.zip` | Check that a failed build preserves the active service. |
+
+To verify both rollback choices on the deployed platform, activate the two
+repairs in order. On revision two, posting JSON `null` to `/evaluate`
+returns HTTP 200. After rollback to the previous revision, the same input
+returns HTTP 400 and the first fix still works. After rollback to the starter,
+the original edge case fails again. For example, an empty order returns
+`0` on either repair and `null` on the starter. Check through the same team
+endpoint after each change.
 
 The service Dockerfiles pin the same Python base by digest. For the offline
 patch worker, supply that base as an approved Linux amd64 OCI archive and

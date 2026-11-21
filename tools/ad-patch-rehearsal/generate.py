@@ -21,20 +21,21 @@ class Exercise:
     expected: object
     edge: object
     edge_result: object
+    null_result: object
 
 
 EXERCISES = (
     Exercise("order-total", "Return a total of zero for an empty order.",
-             "sum(value) if value else None", "sum(value)", [8, 13], 21, [], 0),
+             "sum(value) if value else None", "sum(value)", [8, 13], 21, [], 0, 0),
     Exercise("guest-list", "Keep guest names in arrival order when removing duplicates.",
              "sorted(set(value))", "list(dict.fromkeys(value))",
-             ["Ada", "Ada", "Bo"], ["Ada", "Bo"], ["Bo", "Ada", "Bo"], ["Bo", "Ada"]),
+             ["Ada", "Ada", "Bo"], ["Ada", "Bo"], ["Bo", "Ada", "Bo"], ["Bo", "Ada"], []),
     Exercise("label-printer", "Trim tabs as well as spaces around a label.",
-             'value.strip(" ")', "value.strip()", " West ", "West", "\tEast\t", "East"),
+             'value.strip(" ")', "value.strip()", " West ", "West", "\tEast\t", "East", ""),
     Exercise("page-counter", "Return zero pages when the list is empty. A page holds four entries.",
-             "max(1, (len(value) + 3) // 4)", "(len(value) + 3) // 4", [1, 2, 3, 4, 5], 2, [], 0),
+             "max(1, (len(value) + 3) // 4)", "(len(value) + 3) // 4", [1, 2, 3, 4, 5], 2, [], 0, 0),
     Exercise("peak-sensor", "Report the highest reading even when every temperature is negative.",
-             "max([0, *value])", "max(value, default=0)", [1, 9, 4], 9, [-8, -2, -5], -2),
+             "max([0, *value])", "max(value, default=0)", [1, 9, 4], 9, [-8, -2, -5], -2, 0),
 )
 
 
@@ -98,6 +99,8 @@ def generate(output):
                      "exercise.py": exercise_source(case.starter)}
             archive(zips / "starter.zip", files)
             archive(zips / "patched.zip", {**files, "exercise.py": exercise_source(case.repaired)})
+            second_repair = f"{case.null_result!r} if value is None else {case.repaired}"
+            archive(zips / "patched-v2.zip", {**files, "exercise.py": exercise_source(second_repair)})
             archive(zips / "failed-build.zip", {**files, "Dockerfile": offline + "\nCOPY missing-file /demo\n"})
         work.rename(output)
 

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import zipfile
 
@@ -47,7 +48,7 @@ class Rehearsal(unittest.TestCase):
                     zips = root / "event/patches" / case.name
                     flag_file = root / "current-flag"
                     first, second = (f"flag{{{secrets.token_hex(16)}}}" for _ in range(2))
-                    for version in ("starter", "patched"):
+                    for version in ("starter", "patched", "patched-v2"):
                         src = root / case.name / version
                         with zipfile.ZipFile(zips / f"{version}.zip") as archive:
                             self.assertEqual(set(archive.namelist()), {"Dockerfile", "server.py", "exercise.py"})
@@ -62,7 +63,16 @@ class Rehearsal(unittest.TestCase):
                             self.assertEqual(verdict(checker, port, second), 0)
                             req = Request(f"http://127.0.0.1:{port}/evaluate", data=json.dumps(case.edge).encode())
                             with urlopen(req, timeout=2) as response:
-                                self.assertEqual(json.load(response) == case.edge_result, version == "patched")
+                                self.assertEqual(json.load(response) == case.edge_result, version != "starter")
+                            null_request = Request(f"http://127.0.0.1:{port}/evaluate", data=b"null")
+                            if version == "patched":
+                                with self.assertRaises(HTTPError) as rejected:
+                                    urlopen(null_request, timeout=2)
+                                self.assertEqual(rejected.exception.code, 400)
+                                rejected.exception.close()
+                            elif version == "patched-v2":
+                                with urlopen(null_request, timeout=2) as response:
+                                    self.assertEqual(json.load(response), case.null_result)
                         self.assertEqual(verdict(checker, port, second), 2)
 
 
