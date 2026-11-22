@@ -8,6 +8,7 @@ import secrets
 import select
 import subprocess
 import tempfile
+import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
@@ -82,7 +83,7 @@ def check(root, cleanup):
                      "readinessProbe": {"httpGet": {"path": "/health", "port": 8080}, "periodSeconds": 1},
                      "securityContext": {"runAsNonRoot": True, "runAsUser": 10000, "runAsGroup": 10000,
                                          "allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}}}
-        spec = {"containers": [container], "automountServiceAccountToken": False}
+        spec = {"containers": [container], "restartPolicy": "Never", "automountServiceAccountToken": False}
         if persistent:
             spec["volumes"] = [{"name": "data", "persistentVolumeClaim": {"claimName": team}}]
             container["volumeMounts"] = [{"name": "data", "mountPath": "/var/lib/rehearsal"}]
@@ -93,6 +94,31 @@ def check(root, cleanup):
 
     def remove_pod(team):
         run(*kube, "delete", "pod", team, "--wait=true", "--timeout=60s", "--grace-period=1")
+
+    def switch_image(team, previous, target):
+        resource = f"pod/{team}"
+        before = json.loads(run(*kube, "get", resource, "-o", "json"))
+        uid = before["metadata"]["uid"]
+        old_id = before["status"]["containerStatuses"][0]["containerID"]
+        patch = [
+            {"op": "test", "path": "/metadata/uid", "value": uid},
+            {"op": "test", "path": "/spec/containers/0/name", "value": "service"},
+            {"op": "test", "path": "/spec/containers/0/image", "value": images[previous]},
+            {"op": "replace", "path": "/spec/containers/0/image", "value": images[target]},
+        ]
+        run(*kube, "patch", resource, "--type=json", "-p", json.dumps(patch))
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            live = json.loads(run(*kube, "get", resource, "-o", "json"))
+            assert live["metadata"]["uid"] == uid
+            assert live["status"]["podIP"] == before["status"]["podIP"]
+            for container in live["status"].get("containerStatuses", []):
+                if (container["name"] == "service" and container["ready"]
+                        and "running" in container["state"]
+                        and container.get("containerID") and container["containerID"] != old_id):
+                    return
+            time.sleep(1)
+        raise TimeoutError(f"{resource} did not start a ready container for {target}: {live['status']['phase']}")
 
     def deliver(team, flag):
         run(*kube, "exec", "-i", team, "--", "sh", "-ec", "cat > /flag", payload=flag)
@@ -120,10 +146,15 @@ def check(root, cleanup):
     first_id = None
     with forwarded(kube, "team-two") as peer_port:
         peer_id = installation_id(peer_port)
-        for step, version in enumerate(("starter", "patched", "patched-v2", "patched", "starter"), 1):
-            if step > 1:
-                remove_pod("team-one")
-            pod("team-one", version)
+        revisions = ("patched", "patched-v2", "patched", "starter")
+        versions = ("starter", *revisions, *revisions)
+        for step, version in enumerate(versions, 1):
+            if step > 1 + len(revisions):
+                switch_image("team-one", versions[step - 2], version)
+            else:
+                if step > 1:
+                    remove_pod("team-one")
+                pod("team-one", version)
             run(*kube, "exec", "team-one", "--", "test", "!", "-s", "/flag")
             flag = secrets.token_hex(24)
             deliver("team-one", flag)
@@ -146,7 +177,7 @@ def check(root, cleanup):
             assert verdict(checker, peer_port, peer_flag, team_id=2, round_number=step) == 0
             assert run(*kube, "get", "svc/team-one", "-o", "jsonpath={.metadata.uid}/{.spec.clusterIP}") == service
     print("Unclaimed storage lost the installation ID. Two separate team claims preserved their data, "
-          "fresh flags and Service identity across both repairs and both rollbacks.")
+          "fresh flags and Service identity across Pod replacements and in-place image changes.")
 
 
 if __name__ == "__main__":
