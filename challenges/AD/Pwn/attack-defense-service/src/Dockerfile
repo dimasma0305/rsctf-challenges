@@ -3,14 +3,14 @@
 FROM python:3.12-alpine
 
 WORKDIR /app
-COPY --chown=nobody:nogroup app.py /app/app.py
+COPY --chown=10000:10000 app.py /app/app.py
 
-# rsctf refreshes /flag every round with `docker exec` as the configured
-# container user. Seed the file with the ownership required for later writes.
-RUN touch /flag && chown nobody:nogroup /flag
+# RSCTF's default Kubernetes security context runs the team service as 10000:10000.
+# This user rotates the flag and can replace app.py using an editor over SSH.
+RUN touch /flag && chown 10000:10000 /flag /app
 ENV RSCTF_FLAG_FILE=/flag
 
-USER nobody
+USER 10000:10000
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=2s --retries=3 \
   CMD ["python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8080),2); s.sendall(b'PING\\n'); sys.exit(s.makefile('rb').readline(4097)!=b'PONG\\n')"]
