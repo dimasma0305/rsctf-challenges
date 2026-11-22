@@ -39,6 +39,9 @@ missing `evaluate` function leaves the previous version serving requests.
 Repeat the edit on the same file and check the response through both teams'
 endpoints. Only the edited team's response should change. Its installation ID
 and current-round checker result should stay the same.
+The generated starter also registers this single file in `.rsctf-ssh.json`.
+On a platform with hosted SSH observations, check **SSH edit history** after
+closing each shell to compare successive edits.
 
 Before activating a revision, record the 32-character response from
 `GET /installation` on each team endpoint. The service stores this identifier
