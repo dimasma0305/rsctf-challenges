@@ -80,7 +80,7 @@ def check(root, cleanup):
     def pod(team, version, persistent=True):
         container = {"name": "service", "image": images[version], "imagePullPolicy": "Never",
                      "readinessProbe": {"httpGet": {"path": "/health", "port": 8080}, "periodSeconds": 1},
-                     "securityContext": {"runAsNonRoot": True, "runAsUser": 65534,
+                     "securityContext": {"runAsNonRoot": True, "runAsUser": 10000, "runAsGroup": 10000,
                                          "allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}}}
         spec = {"containers": [container], "automountServiceAccountToken": False}
         if persistent:
@@ -88,6 +88,8 @@ def check(root, cleanup):
             container["volumeMounts"] = [{"name": "data", "mountPath": "/var/lib/rehearsal"}]
         create("Pod", team, spec, {"team": team})
         run(*kube, "wait", "--for=condition=Ready", f"pod/{team}", "--timeout=75s")
+        run(*kube, "exec", team, "--", "sh", "-ec",
+            'test "$(id -u):$(id -g)" = 10000:10000 && test -w /flag && test -w /app/exercise.py')
 
     def remove_pod(team):
         run(*kube, "delete", "pod", team, "--wait=true", "--timeout=60s", "--grace-period=1")

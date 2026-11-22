@@ -71,7 +71,10 @@ Record the actual elapsed time and measurements separately.
 
 On a disposable Docker host with Kind v0.32.0 and kubectl, run
 `python3 tools/ad-patch-rehearsal/test_kubernetes.py`. It creates a temporary
-single-node cluster with its own kubeconfig. The order-total fixture loses
+single-node cluster with its own kubeconfig. Each Pod runs as UID and GID
+10000, the RSCTF Kubernetes defaults. The test checks write access to the
+round flag and the registered exercise file after every replacement.
+The order-total fixture loses
 its SQLite installation ID when a replacement Pod starts without a claim.
 The test then gives each of two teams a separate claim and checks the ID,
 Service address, flag and application behavior across two repairs, rollback
