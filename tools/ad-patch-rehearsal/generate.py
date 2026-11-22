@@ -101,6 +101,7 @@ def generate(output):
                          "sourcePath": "exercise.py",
                          "containerPath": "/app/exercise.py",
                          "retainContent": True,
+                         "shareAfterClose": True,
                      }]).encode()}
             archive(zips / "starter.zip", files)
             archive(zips / "patched.zip", {**files, "exercise.py": exercise_source(case.repaired)})

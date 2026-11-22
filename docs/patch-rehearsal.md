@@ -70,6 +70,16 @@ The four-hour staging exercise also
 needs the deployed platform, its runtimes, team VPN connections and scoring.
 Record the actual elapsed time and measurements separately.
 
+### Check the closed-game patch archive
+
+Enable **Share patch activity** before the rehearsal starts. The five hosted
+starters each mark only `exercise.py` with `shareAfterClose`. Save two ZIP
+revisions and deploy one. After game end, round finalization, and the end of
+practice, open the archived challenge as another team in the same division.
+The deployed revision should list `exercise.py` as modified. The saved-only
+revision and its source contents should stay private. A team in another
+division should not see the deploying team's revision.
+
 ### Check Kubernetes storage
 
 On a disposable Docker host with Kind v0.32.0 and kubectl, run
