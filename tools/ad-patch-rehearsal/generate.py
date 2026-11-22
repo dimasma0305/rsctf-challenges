@@ -96,6 +96,7 @@ def generate(output):
             zips = work / "patches" / case.name
             zips.mkdir(parents=True)
             files = {"server.py": (src / "server.py").read_bytes(), "Dockerfile": offline,
+                     ".rsctf-data-dir": b"/var/lib/rehearsal\n",
                      "exercise.py": exercise_source(case.starter),
                      ".rsctf-ssh.json": json.dumps([{
                          "sourcePath": "exercise.py",

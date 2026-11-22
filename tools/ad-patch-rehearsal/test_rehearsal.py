@@ -64,7 +64,8 @@ class Rehearsal(unittest.TestCase):
                     for version in ("starter", "patched", "patched-v2"):
                         src = root / case.name / version
                         with zipfile.ZipFile(zips / f"{version}.zip") as archive:
-                            self.assertEqual(set(archive.namelist()), {"Dockerfile", "server.py", "exercise.py", ".rsctf-ssh.json"})
+                            self.assertEqual(set(archive.namelist()), {"Dockerfile", "server.py", "exercise.py", ".rsctf-ssh.json", ".rsctf-data-dir"})
+                            self.assertEqual(archive.read(".rsctf-data-dir"), b"/var/lib/rehearsal\n")
                             self.assertEqual(json.loads(archive.read(".rsctf-ssh.json")),
                                              [{"sourcePath": "exercise.py", "containerPath": "/app/exercise.py",
                                                "retainContent": True, "shareAfterClose": True}])
