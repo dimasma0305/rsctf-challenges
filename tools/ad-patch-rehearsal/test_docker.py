@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 import time
 import uuid
+from urllib.request import Request, urlopen
+import zipfile
 
 from generate import EXERCISES, generate
 from test_rehearsal import installation_id, verdict
@@ -31,6 +33,39 @@ def wait_healthy(container, deadline):
         if time.monotonic() >= deadline:
             raise RuntimeError("service health check timed out")
         time.sleep(1)
+
+
+def check_live_edits(event, services, flags):
+    exercise = EXERCISES[0]
+    container, port, checker = services[1, 1]
+    installation = installation_id(port)
+
+    def evaluate(port, value):
+        request = Request(f"http://127.0.0.1:{port}/evaluate", data=json.dumps(value).encode())
+        with urlopen(request, timeout=2) as response:
+            return json.load(response)
+
+    starter_result = evaluate(port, exercise.edge)
+    assert starter_result != exercise.edge_result
+    for archive in ("patched", "invalid", "missing-function", "patched-v2"):
+        if archive == "invalid":
+            source = b"def evaluate(\n"
+        elif archive == "missing-function":
+            source = b"# edit in progress\n"
+        else:
+            with zipfile.ZipFile(event / "patches" / exercise.name / f"{archive}.zip") as patch:
+                source = patch.read("exercise.py")
+        subprocess.run(["docker", "exec", "-i", container, "sh", "-ec",
+                        'tmp=$(mktemp /app/.edit.XXXXXX); cat > "$tmp"; '
+                        'mv "$tmp" /app/exercise.py; kill -HUP 1'],
+                       input=source, check=True, timeout=5)
+        assert evaluate(port, exercise.edge) == exercise.edge_result, archive
+        if archive == "patched-v2":
+            assert evaluate(port, None) == exercise.null_result
+        if (1, 2) in services:
+            assert evaluate(services[1, 2][1], exercise.edge) == starter_result
+        assert installation_id(port) == installation
+        assert verdict(checker, port, flags[1, 1], round_number=2) == 0
 
 
 def check(teams):
@@ -87,6 +122,7 @@ def check(teams):
                     if verdict(checker, port, wrong_flag, **ctx) != 1:
                         raise RuntimeError(f"expected a flag mismatch for challenge {challenge}, team {team}")
                     rejected += 1
+        check_live_edits(event, services, flags)
         original = services[1, 1][0]
         docker("stop", "-t", "1", original)
         image = docker("inspect", "--format", "{{.Image}}", original)
@@ -98,7 +134,8 @@ def check(teams):
         docker("exec", replacement, "test", "!", "-s", "/flag")
         print(json.dumps({"teams": teams, "healthyContainers": len(services), "successfulChecks": checks,
                           "expectedFlagMismatches": rejected, "distinctInstallations": len(services),
-                          "distinctDataVolumes": len(set(volumes.values())), "replacementPreservedData": True}))
+                          "distinctDataVolumes": len(set(volumes.values())), "replacementPreservedData": True,
+                          "liveEditsApplied": 2, "invalidEditsKeptPreviousVersion": 2}))
 
 
 if __name__ == "__main__":

@@ -32,6 +32,14 @@ the original edge case fails again. For example, an empty order returns
 `0` on either repair and `null` on the starter. Check through the same team
 endpoint after each change.
 
+For an SSH rehearsal, open the team's shell from the Toolkit, edit
+`/app/exercise.py`, then run `kill -HUP 1` in that service container.
+The next request to `/evaluate` loads the saved function. A syntax error or a
+missing `evaluate` function leaves the previous version serving requests.
+Repeat the edit on the same file and check the response through both teams'
+endpoints. Only the edited team's response should change. Its installation ID
+and current-round checker result should stay the same.
+
 Before activating a revision, record the 32-character response from
 `GET /installation` on each team endpoint. The service stores this identifier
 in SQLite under `/var/lib/rehearsal`. Each team and challenge should have a

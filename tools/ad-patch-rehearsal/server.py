@@ -6,9 +6,32 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
+import signal
 import sqlite3
+import sys
 
-from exercise import evaluate
+
+def load_exercise():
+    evaluate = runpy.run_path(str(Path(__file__).with_name("exercise.py")))["evaluate"]
+    if not callable(evaluate):
+        raise TypeError("exercise.py must define evaluate(value)")
+    return evaluate
+
+
+class RehearsalServer(HTTPServer):
+    def request_reload(self, _signal, _frame):
+        self.reload_requested = True
+
+    def evaluate_input(self, value):
+        if self.reload_requested:
+            self.reload_requested = False
+            try:
+                self.evaluate = load_exercise()
+            except Exception as error:
+                print(f"Exercise reload failed ({type(error).__name__}); keeping previous code",
+                      file=sys.stderr, flush=True)
+        return self.evaluate(value)
 
 
 def load_installation_id():
@@ -60,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 1024:
                 return self.reply(400, b"")
             value = json.loads(self.rfile.read(size))
-            result = json.dumps(evaluate(value)).encode()
+            result = json.dumps(self.server.evaluate_input(value)).encode()
         except (AttributeError, TypeError, ValueError, RecursionError):
             return self.reply(400, b"")
         self.reply(200, result)
@@ -70,7 +93,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    with HTTPServer((os.getenv("BIND", "0.0.0.0"), int(os.getenv("PORT", "8080"))), Handler) as server:
+    with RehearsalServer((os.getenv("BIND", "0.0.0.0"), int(os.getenv("PORT", "8080"))), Handler) as server:
         server.installation_id = load_installation_id()
+        server.evaluate = load_exercise()
+        server.reload_requested = False
+        signal.signal(signal.SIGHUP, server.request_reload)
         print(server.server_port, flush=True)
         server.serve_forever()
