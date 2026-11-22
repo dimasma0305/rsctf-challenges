@@ -39,9 +39,12 @@ missing `evaluate` function leaves the previous version serving requests.
 Repeat the edit on the same file and check the response through both teams'
 endpoints. Only the edited team's response should change. Its installation ID
 and current-round checker result should stay the same.
-The generated starter also registers this single file in `.rsctf-ssh.json`.
-On a platform with hosted SSH observations, check **SSH edit history** after
-closing each shell to compare successive edits.
+The generated starter registers only `/app/exercise.py` for recovery in
+`.rsctf-ssh.json`. On a platform with SSH recovery, open **SSH edit history**
+after closing the shell and download the starter with that revision's edits.
+Replace the container and download the same revision again during the game.
+Check that both ZIPs contain the team's edited `exercise.py` and that
+`server.py` still matches the starter.
 
 Before activating a revision, record the 32-character response from
 `GET /installation` on each team endpoint. The service stores this identifier

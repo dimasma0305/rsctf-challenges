@@ -97,7 +97,11 @@ def generate(output):
             zips.mkdir(parents=True)
             files = {"server.py": (src / "server.py").read_bytes(), "Dockerfile": offline,
                      "exercise.py": exercise_source(case.starter),
-                     ".rsctf-ssh.json": json.dumps([{"sourcePath": "exercise.py", "containerPath": "/app/exercise.py"}]).encode()}
+                     ".rsctf-ssh.json": json.dumps([{
+                         "sourcePath": "exercise.py",
+                         "containerPath": "/app/exercise.py",
+                         "retainContent": True,
+                     }]).encode()}
             archive(zips / "starter.zip", files)
             archive(zips / "patched.zip", {**files, "exercise.py": exercise_source(case.repaired)})
             second_repair = f"{case.null_result!r} if value is None else {case.repaired}"

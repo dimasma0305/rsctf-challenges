@@ -66,7 +66,8 @@ class Rehearsal(unittest.TestCase):
                         with zipfile.ZipFile(zips / f"{version}.zip") as archive:
                             self.assertEqual(set(archive.namelist()), {"Dockerfile", "server.py", "exercise.py", ".rsctf-ssh.json"})
                             self.assertEqual(json.loads(archive.read(".rsctf-ssh.json")),
-                                             [{"sourcePath": "exercise.py", "containerPath": "/app/exercise.py"}])
+                                             [{"sourcePath": "exercise.py", "containerPath": "/app/exercise.py",
+                                               "retainContent": True}])
                             archive.extractall(src)
                         self.assertTrue((src / "Dockerfile").read_text().startswith("FROM rsctf-starter\n"))
                         flag_file.write_text(first)
