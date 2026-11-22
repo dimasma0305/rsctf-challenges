@@ -137,7 +137,11 @@ def check(root, cleanup):
     remove_pod("ephemeral")
     pod("ephemeral", "starter", persistent=False)
     with forwarded(kube, "ephemeral") as port:
-        assert installation_id(port) != original
+        second = installation_id(port)
+        assert second != original
+    switch_image("ephemeral", "starter", "patched")
+    with forwarded(kube, "ephemeral") as port:
+        assert installation_id(port) != second, "check image-declared volume retention on this runtime"
 
     peer_flag = secrets.token_hex(24)
     pod("team-two", "starter")
