@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      scored_event:
+        description: Run the hosted RSCTF event on a disposable Linux runner
+        type: choice
+        options: [skip, preflight, four-hours]
+        default: skip
+      platform_run:
+        description: Successful CI run ID from dimasma0305/rsctf
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +23,53 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scored-event:
+    if: github.event_name == 'workflow_dispatch' && inputs.scored_event != 'skip'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 280
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify and install the tested platform binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.platform_run }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN" =~ ^[1-9][0-9]*$ ]]
+          repo=repos/dimasma0305/rsctf
+          gh api "$repo/actions/runs/$RUN" > "$RUNNER_TEMP/platform-run.json"
+          jq -e '.conclusion == "success" and .path == ".github/workflows/ci.yml" and .head_repository.full_name == "dimasma0305/rsctf"' "$RUNNER_TEMP/platform-run.json" >/dev/null
+          gh api "$repo/actions/runs/$RUN/artifacts?per_page=100" |
+            jq -e '[.artifacts[] | select((.name|test("^ci-server-[0-9a-f]{40}$")) and (.expired|not))] | select(length==1) | first' > "$RUNNER_TEMP/candidate.json"
+          artifact=$(jq -r '.id' "$RUNNER_TEMP/candidate.json")
+          gh api "$repo/actions/artifacts/$artifact/zip" > "$RUNNER_TEMP/server.zip"
+          digest=$(jq -er '.digest|select(test("^sha256:[0-9a-f]{64}$"))|ltrimstr("sha256:")' "$RUNNER_TEMP/candidate.json")
+          echo "$digest  $RUNNER_TEMP/server.zip" | sha256sum --check --strict
+          source_sha=$(unzip -p "$RUNNER_TEMP/server.zip" source-sha)
+          test "ci-server-$source_sha" = "$(jq -r '.name' "$RUNNER_TEMP/candidate.json")"
+          unzip -p "$RUNNER_TEMP/server.zip" rsctf > "$RUNNER_TEMP/rsctf"
+          sudo install -m 0755 "$RUNNER_TEMP/rsctf" /usr/local/bin/rsctf-event
+          echo "Testing platform CI run $RUN at $source_sha"
+      - name: Install event runner dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends iptables ipset wireguard-tools libpcap0.8t64 python3-psycopg
+      - name: Run official scoring over personal WireGuard connections
+        env:
+          MODE: ${{ inputs.scored_event }}
+        run: sudo /usr/bin/python3 tools/ad-patch-rehearsal/scored_event.py "$MODE" "$RUNNER_TEMP/event-result.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: scored-event
+          path: ${{ runner.temp }}/event-result.json
+          if-no-files-found: ignore
+
   kubernetes-patch-storage:
     name: Rehearse Kubernetes team storage and rollback
     runs-on: ubuntu-24.04

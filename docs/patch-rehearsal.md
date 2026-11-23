@@ -73,6 +73,17 @@ The four-hour staging exercise also
 needs the deployed platform, its runtimes, team VPN connections and scoring.
 Record the actual elapsed time and measurements separately.
 
+The **Validate challenge repository** workflow can run the platform and all
+five services on a disposable native Linux runner. Use **Run workflow**, select
+`preflight`, and enter a successful RSCTF platform CI run ID while its
+`ci-server` artifact is available. A preflight measures six minutes after the
+twenty players reach their services. Select `four-hours` for the timed event.
+The `scored-event` result contains fixture image build times, peak disk use
+on the runner, VPN reads, and official per-round counts for acknowledged flag
+deliveries and successful checkers with full SLA credit. The check uses the
+five generated starters throughout. Use the separate patch and BYOC tests for
+revision activation, rollback and source reporter measurements.
+
 ### Check the closed-game patch archive
 
 Enable **Share patch activity** before the rehearsal starts. The five hosted
