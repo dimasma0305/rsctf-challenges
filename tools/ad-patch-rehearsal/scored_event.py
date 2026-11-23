@@ -3,18 +3,19 @@ import argparse
 from contextlib import ExitStack
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shutil
 import subprocess
 import tempfile
 import time
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 import psycopg
 
-from event_clients import enroll, sample, start_client
+from event_clients import Player, enroll, sample, start_client
 from generate import generate
 
 
@@ -52,20 +53,18 @@ def prepare(root, report):
     return images
 
 
-def seed(db, images):
+def seed(db, images, bootstrap):
     # The database and daemon are local to this job. Only organizer-authored
     # fields are seeded. The running platform admits players and creates the services.
+    organizer = Player(0)
+    organizer.register(bootstrap)
+    now = int(time.time()*1000)
+    gid = organizer.api("/api/edit/games", {"title": "Scored fixture", "hidden": False,
+           "acceptWithoutReview": True, "practiceMode": False, "start": now+900_000,
+           "end": now+21_600_000, "teamMemberCountLimit": 4, "containerCountLimit": 5})["id"]
     with db.transaction():
-        gid = db.execute('''INSERT INTO "Games"
-            (title,public_key,private_key,hidden,practice_mode,summary,content,
-             accept_without_review,allow_user_submissions,writeup_required,
-             team_member_count_limit,container_count_limit,start_time_utc,end_time_utc,
-             writeup_deadline,writeup_note,blood_bonus_value,ad_allow_snapshot_download,
-             ad_scoring_paused,ad_warmup_seconds,ad_tick_seconds,ad_epoch_ticks)
-            VALUES ('Scored fixture',%s,%s,false,false,'','',true,false,false,4,5,
-            now()+interval '15 minutes',now()+interval '6 hours',now()+interval '6 hours',
-            '',0,true,false,0,120,2) RETURNING id''',
-            (secrets.token_hex(32), secrets.token_hex(32))).fetchone()[0]
+        db.execute('''UPDATE "Games" SET ad_warmup_seconds=0,ad_tick_seconds=120,ad_epoch_ticks=2
+                      WHERE id=%s''', (gid,))
         for name, (image, checker) in images.items():
             db.execute('''INSERT INTO "GameChallenges"
                 (game_id,title,content,category,"Type",is_enabled,submission_limit,
@@ -105,12 +104,12 @@ def rehearse(mode, report, output, root, cleanup):
     images = prepare(root, report)
     password = secrets.token_hex(28)
     db_container = subprocess.check_output(
-        ["docker", "run", "--rm", "-d", "-p", "127.0.0.1::5432", "-e", "POSTGRES_DB=scored_event",
-         "-e", "POSTGRES_PASSWORD", "postgres:18.4-alpine3.24"], text=True, timeout=180,
+        ["docker", "run", "--rm", "-d", "--network", "container:" + os.environ["RSCTF_EVENT_ANCHOR"],
+         "-e", "POSTGRES_DB=scored_event", "-e", "POSTGRES_PASSWORD", "postgres:18.4-alpine3.24",
+         "-c", "listen_addresses=127.0.0.1"], text=True, timeout=180,
         env={**os.environ, "POSTGRES_PASSWORD": password}).strip()
     cleanup.callback(subprocess.run, ["docker", "stop", "-t", "2", db_container], capture_output=True)
-    port = command("docker", "port", db_container, "5432/tcp").split(":")[-1]
-    url = f"postgresql://postgres:{password}@127.0.0.1:{port}/scored_event"
+    url = f"postgresql://postgres:{password}@127.0.0.1:5432/scored_event"
     wait_for(lambda: subprocess.run(["docker", "exec", db_container, "pg_isready", "-h", "127.0.0.1"],
                                      capture_output=True).returncode == 0, 60, "PostgreSQL startup")
     bootstrap = secrets.token_hex(32)
@@ -123,13 +122,14 @@ def rehearse(mode, report, output, root, cleanup):
                RSCTF_EVENT_VPN_PROOF_URL="https://rehearsal.invalid", RSCTF_COOKIE_SECURE="false",
                RSCTF_PUBLIC_URL="http://127.0.0.1:18080", RSCTF_BIND="127.0.0.1:18080",
                RSCTF_DOCKER_SCOPE="scored-event", RSCTF_CONTAINER_BACKEND="docker",
+               RSCTF_AD_VPN_SERVICES_NETWORK="rsctf-scored-ad",
                RSCTF_DOCKER_ALLOW_UNBOUNDED_STORAGE="true", RSCTF_STORAGE_ROOT=str(private / "storage"))
     binary = "/usr/local/bin/rsctf-event"
     subprocess.run([binary], env={**env, "RSCTF_ROLE": "migrate"}, check=True, stdout=subprocess.DEVNULL)
     db = cleanup.enter_context(psycopg.connect(url, autocommit=True))
-    gid = seed(db, images)
     log = cleanup.enter_context((private / "server.log").open("w"))
-    server = subprocess.Popen([binary], env={**env, "RSCTF_ROLE": "all"}, stdout=log, stderr=log)
+    server = subprocess.Popen([binary], env={**env, "RSCTF_ROLE": "all", "RSCTF_MIGRATE": "0"},
+                              stdout=log, stderr=log)
     def stop():
         server.terminate()
         try:
@@ -144,10 +144,28 @@ def rehearse(mode, report, output, root, cleanup):
         try:
             with urlopen("http://127.0.0.1:18080/healthz", timeout=2) as res:
                 return res.read(16) == b"ok"
+        except HTTPError as error:
+            report["startupHttpStatus"] = error.code
+            return False
         except (URLError, TimeoutError):
             return False
-    wait_for(ready, 90, "platform startup")
-    teams = enroll(gid, bootstrap)
+    try:
+        wait_for(ready, 90, "platform startup")
+    except (RuntimeError, TimeoutError):
+        # No player credentials or flags exist at this point. Restrict public
+        # diagnostics to startup warnings and remove generated configuration values.
+        messages = []
+        for line in (private / "server.log").read_text(errors="replace").splitlines():
+            line = re.sub(r"\x1b\[[0-9;]*m", "", line)
+            if "WARN" in line or "ERROR" in line or line.startswith("Error:"):
+                for value in [password, bootstrap, env["RSCTF_JWT_SECRET"], env["RSCTF_IDENTITY_HASH_KEY"],
+                              env["RSCTF_EVENT_VPN_CREDENTIAL_KEY"]]:
+                    line = line.replace(value, "[redacted]")
+                messages.append(line[:400])
+        print("Startup diagnostics:", messages[-8:], flush=True)
+        raise
+    gid = seed(db, images, bootstrap)
+    teams = enroll(gid)
     addresses = {start_client(p, gid, private, cleanup) for players in teams.values() for p in players}
     if len(addresses) != 20:
         raise ValueError("expected 20 personal VPN addresses")
@@ -157,7 +175,12 @@ def rehearse(mode, report, output, root, cleanup):
     db.execute('''UPDATE "Games" SET start_time_utc=clock_timestamp(),
         end_time_utc=clock_timestamp()+(%s * interval '1 second') WHERE id=%s''', (duration + 360, gid))
     routes = wait_for(lambda: endpoints(db, gid), 180, "25 published managed services")
-    baseline = sample(teams, routes)
+    def initial_sample():
+        try:
+            return sample(teams, routes)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return None
+    baseline = wait_for(initial_sample, 90, "all personal tunnels reaching the managed services")
     started = time.monotonic()
     baseline_round = db.execute('''SELECT coalesce(max(number),0) FROM "AdRounds" WHERE game_id=%s''',
                                 (gid,)).fetchone()[0]
@@ -176,11 +199,12 @@ def rehearse(mode, report, output, root, cleanup):
         output.write_text(json.dumps(report, indent=2)+"\n")
         if any((delivered, healthy) != (25, 25) for _, delivered, healthy in rounds):
             raise RuntimeError("official flag delivery or checker scoring failed")
-        if elapsed >= duration:
-            if len(rounds) < duration // 120 - 1 or any(b[0] != a[0]+1 for a,b in zip(rounds,rounds[1:])):
-                raise RuntimeError("insufficient consecutive settled rounds")
+        expected = list(range(baseline_round + 1, baseline_round + 1 + duration // 120))
+        if elapsed >= duration and [r[0] for r in rounds][:len(expected)] == expected:
             break
-        time.sleep(min(30, duration-elapsed))
+        if elapsed > duration + 240:
+            raise RuntimeError("insufficient consecutive settled rounds")
+        time.sleep(30)
 
 
 if __name__ == "__main__":

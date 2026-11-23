@@ -57,8 +57,7 @@ class Player:
             raise RuntimeError("registration did not issue the test account a session")
 
 
-def enroll(game, bootstrap):
-    Player(0).register(bootstrap)
+def enroll(game):
     teams = {}
     for team in range(5):
         players = [Player(team * 4 + n + 1) for n in range(4)]

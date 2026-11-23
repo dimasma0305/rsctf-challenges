@@ -62,7 +62,16 @@ jobs:
       - name: Run official scoring over personal WireGuard connections
         env:
           MODE: ${{ inputs.scored_event }}
-        run: sudo /usr/bin/python3 tools/ad-patch-rehearsal/scored_event.py "$MODE" "$RUNNER_TEMP/event-result.json"
+        run: |
+          set -euo pipefail
+          docker network create --internal --subnet 10.214.0.0/24 rsctf-scored-ad
+          anchor=$(docker run --detach --network rsctf-scored-ad --ip 10.214.0.253 \
+            --sysctl net.ipv4.ip_forward=1 \
+            python:3.12-alpine@sha256:c5ba3deef00c7758561a0f03c26f44f10589263d40e732b8748e0d1f38f6dd89 sleep infinity)
+          trap 'docker rm -f "$anchor" >/dev/null' EXIT
+          pid=$(docker inspect --format '{{.State.Pid}}' "$anchor")
+          sudo nsenter --target "$pid" --net env RSCTF_EVENT_ANCHOR="$anchor" \
+            /usr/bin/python3 tools/ad-patch-rehearsal/scored_event.py "$MODE" "$RUNNER_TEMP/event-result.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
