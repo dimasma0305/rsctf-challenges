@@ -13,5 +13,5 @@ container:
 ad:
   allowEgress: false
   selfHosted: false
-  # On RSCTF versions with manifest ZIP support, uncomment after adding starter.zip.
-  # starterZip: starter.zip
+  # Uncomment on RSCTF versions with automatic ZIP generation from src/.
+  # starterZip: src

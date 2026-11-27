@@ -7,23 +7,23 @@ BYOC teams apply patches on their own hosts.
 
 ## Register from YAML
 
-On an RSCTF version that supports `ad.starterZip`, archive the committed service
-context next to its manifest and add the filename:
-
-```sh
-package=challenges/AD/Pwn/your-challenge
-git archive --format=zip --output="$package/starter.zip" "HEAD:$package/src"
-```
+On an RSCTF version that supports automatic ZIP generation, set the starter to
+the committed service source:
 
 ```yaml
 ad:
   selfHosted: false
-  starterZip: starter.zip
+  starterZip: src
 ```
 
-Commit the ZIP and manifest together, then scan the trusted Repository Binding
-before kickoff. The importer registers the starter and pairs it with the original
-build. To replace a saved starter before kickoff, use **Team patching**.
+On a trusted Repository Binding scan before kickoff, RSCTF makes the ZIP from
+`src/` and pairs it with the original build. Keep `Dockerfile` directly inside
+`src/`. The entire archived source is downloadable by teams. Keep organizer
+files outside that directory.
+
+For a separately reviewed archive, set `starterZip: starter.zip` and commit the
+ZIP beside the manifest. To replace a saved starter before kickoff, use **Team
+patching**.
 
 On earlier RSCTF versions, use the challenge editor to register the archive.
 
