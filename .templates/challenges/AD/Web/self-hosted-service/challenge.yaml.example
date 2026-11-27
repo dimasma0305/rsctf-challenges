@@ -1,14 +1,15 @@
-# Copy into a new package under challenges/ as challenge.yaml.
-name: 'BYOC A&D challenge'
+# Copy this package under challenges/AD and rename this file to challenge.yaml.
+name: 'BYOC A&D SSH rehearsal'
 author: 'Your team'
 description: |
-  Add the player-facing instructions here.
+  Run the team setup on your Docker host and edit the banner from your host shell.
 type: AttackDefense
 category: Web
-
-# Add src/Dockerfile and checker/run.py.
 disableBloodBonus: true
 container:
+  memoryLimit: 64
+  cpuCount: 1
   exposePort: 8080
 ad:
+  allowEgress: false
   selfHosted: true

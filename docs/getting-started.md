@@ -47,6 +47,8 @@ For containers, variants, A&D, and KoTH, add the required components listed in t
 [authoring contract](authoring-contract.md#minimal-layout-by-challenge-type).
 For a hosted A&D challenge, see [ZIP patches for hosted A&D](hosted-ad-zip.md)
 to prepare an upload and choose optional metadata from `.templates/ad-patch/`.
+For complete service and checker starters, use the
+[three A&D packages](ad-templates.md).
 
 ## Choose an example
 

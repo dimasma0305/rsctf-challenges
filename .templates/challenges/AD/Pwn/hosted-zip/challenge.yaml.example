@@ -1,0 +1,15 @@
+# Copy this package under challenges/AD and rename this file to challenge.yaml.
+name: 'Hosted A&D ZIP rehearsal'
+author: 'Your team'
+description: |
+  Download the starter, edit the banner, and submit your team's revised ZIP.
+type: AttackDefense
+category: Pwn
+disableBloodBonus: true
+container:
+  memoryLimit: 64
+  cpuCount: 1
+  exposePort: 8080
+ad:
+  allowEgress: false
+  selfHosted: false

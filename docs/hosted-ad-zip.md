@@ -1,6 +1,7 @@
 # ZIP patches for hosted A&D
 
-Use the [hosted A&D manifest](../.templates/challenges/AD/Pwn/attack-defense-service/challenge.yaml.example).
+Use the [hosted ZIP starter package](../.templates/challenges/AD/Pwn/hosted-zip).
+See [Hosted + ZIP](ad-templates.md#hosted--zip) for building its original service image.
 ZIP patching uses `type: AttackDefense` and `ad.selfHosted: false`. Add the ZIP in the
 RSCTF challenge editor after import. BYOC teams apply patches on their own hosts.
 
