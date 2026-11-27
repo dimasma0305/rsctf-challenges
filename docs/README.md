@@ -10,7 +10,6 @@ reading every reference front to back.
 | look up `.gzevent` or `challenge.yaml` fields | [Manifest reference](configuration.md) |
 | write the organizer solution or reference solver | [Solutions and reference solvers](solutions.md) |
 | write or debug an A&D/KotH checker | [Checker development](checkers.md) |
-| rehearse defensive patches on five hosted A&D services | [Hosted patch rehearsal](patch-rehearsal.md) |
 | run a fair blind solve | [Playtesting](playtesting.md) |
 | import or rescan the repository | [Repository Bindings](importing.md) |
 | prepare deterministic variants or solve receipts | [Provenance](provenance.md) |
