@@ -55,7 +55,7 @@ To make a challenge:
 ├── .gzevent                         # one hidden rsctf event
 ├── AGENTS.md                        # entry point for AI coding agents
 ├── Makefile                         # memorable local commands
-├── .templates/                      # event, manifest, and solution templates
+├── .templates/                      # event, manifest, solution, and patch ZIP metadata
 ├── challenges/
 │   ├── AD/<category>/<slug>/         # manifest + only required components
 │   ├── Jeopardy/<category>/<slug>/

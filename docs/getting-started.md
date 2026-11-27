@@ -45,6 +45,8 @@ Set `category: Reverse`, fill in the challenge name and player instructions, and
 handout and organizer solution. Replace the placeholder flag, then run `make validate`.
 For containers, variants, A&D, and KoTH, add the required components listed in the
 [authoring contract](authoring-contract.md#minimal-layout-by-challenge-type).
+For a hosted A&D challenge, see [ZIP patches for hosted A&D](hosted-ad-zip.md)
+to prepare an upload and choose optional metadata from `.templates/ad-patch/`.
 
 ## Choose an example
 
