@@ -1,0 +1,14 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'BYOC A&D challenge'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: AttackDefense
+category: Web
+
+# Add src/Dockerfile and checker/run.py.
+disableBloodBonus: true
+container:
+  exposePort: 8080
+ad:
+  selfHosted: true

@@ -1,0 +1,15 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'Dynamic handout schema example'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: DynamicAttachment
+category: Misc
+# scoreCurve: Standard
+
+# Schema reference only. Keep disabled while per-team assignment is incomplete.
+# Put the sample handout in dist/ and replace the demo flags.
+flags:
+  - 'rsctf{replace_me_first}'
+  - 'rsctf{replace_me_second}'
+provide: dist

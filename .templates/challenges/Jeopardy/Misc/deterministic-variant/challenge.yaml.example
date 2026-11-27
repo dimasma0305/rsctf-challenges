@@ -1,0 +1,12 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'Per-team variant challenge'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: StaticAttachment
+category: Misc
+# scoreCurve: Standard
+
+# Add generator/Dockerfile and the shared handout in dist/.
+variantMode: PerParticipation
+provide: dist

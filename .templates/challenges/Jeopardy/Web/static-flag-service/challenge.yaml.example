@@ -1,0 +1,17 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'Shared container challenge'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: StaticContainer
+category: Web
+# scoreCurve: Standard
+
+# Add src/Dockerfile and replace the demo flag.
+flags:
+  - 'rsctf{replace_me}'
+container:
+  memoryLimit: 64
+  cpuCount: 1
+  exposePort: 8080
+  enableSharedContainer: true

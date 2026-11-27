@@ -20,8 +20,8 @@ playtests.
    or would materially benefit from images. For mode-specific behavior, read the relevant
    checker, provenance, or KotH documentation under `docs/`.
 3. Require tracked `solution/README.md` and `solution/solve.py`. Instantiate them from
-   [`docs/templates/solution.md`](../../../docs/templates/solution.md) and
-   [`docs/templates/solve.py`](../../../docs/templates/solve.py) when missing, then replace
+   [`.templates/solution/README.md`](../../../.templates/solution/README.md) and
+   [`.templates/solution/solve.py`](../../../.templates/solution/solve.py) when missing, then replace
    every placeholder with challenge-specific content. A schema-only or blocked example still
    gets both files, but its solver must fail clearly instead of fabricating success.
 4. Write the player inputs and intended path chronologically. Put author-only implementation

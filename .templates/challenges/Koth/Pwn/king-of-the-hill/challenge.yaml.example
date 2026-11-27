@@ -1,0 +1,16 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'Marker KoTH challenge'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: KingOfTheHill
+category: Pwn
+
+# Add src/Dockerfile and checker/run.py.
+disableBloodBonus: true
+container:
+  memoryLimit: 64
+  cpuCount: 1
+  exposePort: 8080
+ad:
+  allowEgress: true

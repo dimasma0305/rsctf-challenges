@@ -11,8 +11,8 @@ challenges/<mode>/<category>/<slug>/solution/
 └── fixtures/            # optional small redacted inputs
 ```
 
-Start from [`templates/solution.md`](templates/solution.md) and
-[`templates/solve.py`](templates/solve.py). AI agents apply the same contract through
+Start from the [writeup](../.templates/solution/README.md) and
+[solver](../.templates/solution/solve.py) templates. AI agents apply the same contract through
 `$rsctf-challenge-solution`.
 
 ## Repository and player boundary

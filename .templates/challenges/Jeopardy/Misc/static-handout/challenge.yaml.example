@@ -1,0 +1,13 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'Static handout challenge'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: StaticAttachment
+category: Misc
+# scoreCurve: Standard
+
+# Put the player handout in dist/ and replace the demo flag.
+flags:
+  - 'rsctf{replace_me}'
+provide: dist

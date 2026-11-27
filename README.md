@@ -15,9 +15,10 @@ under `docs/`; AI-agent guidance lives under `.agents/` and `AGENTS.md`.
    and commit its contents (including dotfiles) into a new repository. Choose **Private**
    for an unreleased event.
 2. Edit [`.gzevent`](.gzevent) with your event title and schedule. Keep it hidden while you test.
-3. Pick a [challenge example](docs/getting-started.md#choose-an-example) and copy it into a
-   category under [Jeopardy](challenges/Jeopardy), [A&D](challenges/AD), or [KoTH](challenges/Koth).
-   Remove the demo packages you do not want to import.
+3. Start from a [manifest template](docs/getting-started.md#start-from-a-template) in
+   [`.templates/`](.templates) or a [complete example](docs/getting-started.md#choose-an-example).
+   Put your package under [Jeopardy](challenges/Jeopardy), [A&D](challenges/AD), or
+   [KoTH](challenges/Koth). Remove the demo packages you do not want to import.
 4. Run the checks below, then connect the new repository in
    [RSCTF Repository Bindings](docs/importing.md).
 
@@ -54,6 +55,7 @@ To make a challenge:
 ├── .gzevent                         # one hidden rsctf event
 ├── AGENTS.md                        # entry point for AI coding agents
 ├── Makefile                         # memorable local commands
+├── .templates/                      # event, manifest, and solution templates
 ├── challenges/
 │   ├── AD/<category>/<slug>/         # manifest + only required components
 │   ├── Jeopardy/<category>/<slug>/

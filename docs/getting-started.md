@@ -24,6 +24,28 @@ when a request clearly matches one phase.
 
 Run `make help` at any time to see the supported commands.
 
+## Start from a template
+
+[`.templates/`](../.templates) contains an [event template](../.templates/.gzevent.example),
+[manifest templates](../.templates/challenges) for all nine examples below, and
+[organizer solution templates](../.templates/solution). The manifest paths mirror the
+example directories. RSCTF discovers manifests by filename, so the `.example` suffix
+keeps these files out of imports.
+
+For a new handout challenge, run from the repository root:
+
+```sh
+package=challenges/Jeopardy/Reverse/my-handout
+mkdir -p "$package/dist" "$package/solution"
+cp .templates/challenges/Jeopardy/Misc/static-handout/challenge.yaml.example "$package/challenge.yaml"
+cp .templates/solution/README.md .templates/solution/solve.py "$package/solution/"
+```
+
+Set `category: Reverse`, fill in the challenge name and player instructions, and add the
+handout and organizer solution. Replace the placeholder flag, then run `make validate`.
+For containers, variants, A&D, and KoTH, add the required components listed in the
+[authoring contract](authoring-contract.md#minimal-layout-by-challenge-type).
+
 ## Choose an example
 
 | Type or hosting mode | Copy this directory | Important caveat |
@@ -88,9 +110,9 @@ The copied package already contains a working solution example. Replace it as so
 design becomes testable:
 
 ```sh
-cp docs/templates/solution.md \
+cp .templates/solution/README.md \
   challenges/Jeopardy/Web/my-service/solution/README.md
-cp docs/templates/solve.py \
+cp .templates/solution/solve.py \
   challenges/Jeopardy/Web/my-service/solution/solve.py
 ```
 

@@ -1,0 +1,17 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'Managed Leaderboard KoTH challenge'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: KingOfTheHill
+category: Web
+
+# Add src/Dockerfile, checker/run.py and the reporter beside the service.
+# Enable Leaderboard in the RSCTF operator view after import.
+disableBloodBonus: true
+container:
+  memoryLimit: 64
+  cpuCount: 1
+  exposePort: 8080
+ad:
+  allowEgress: true

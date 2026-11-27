@@ -1,0 +1,15 @@
+# Copy into a new package under challenges/ as challenge.yaml.
+name: 'Per-team container challenge'
+author: 'Your team'
+description: |
+  Add the player-facing instructions here.
+type: DynamicContainer
+category: Web
+# scoreCurve: Standard
+
+# Add src/Dockerfile and set your flag format. Keep the team placeholder.
+flagTemplate: 'rsctf{replace_me_[TEAM_HASH]}'
+container:
+  memoryLimit: 64
+  cpuCount: 1
+  exposePort: 8080
