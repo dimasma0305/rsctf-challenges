@@ -2,8 +2,30 @@
 
 Use the [hosted ZIP starter package](../.templates/challenges/AD/Pwn/hosted-zip).
 See [Hosted + ZIP](ad-templates.md#hosted--zip) for building its original service image.
-ZIP patching uses `type: AttackDefense` and `ad.selfHosted: false`. Add the ZIP in the
-RSCTF challenge editor after import. BYOC teams apply patches on their own hosts.
+ZIP patching uses `type: AttackDefense` and `ad.selfHosted: false`.
+BYOC teams apply patches on their own hosts.
+
+## Register from YAML
+
+On an RSCTF version that supports `ad.starterZip`, archive the committed service
+context next to its manifest and add the filename:
+
+```sh
+package=challenges/AD/Pwn/your-challenge
+git archive --format=zip --output="$package/starter.zip" "HEAD:$package/src"
+```
+
+```yaml
+ad:
+  selfHosted: false
+  starterZip: starter.zip
+```
+
+Commit the ZIP and manifest together, then scan the trusted Repository Binding
+before kickoff. The importer registers the starter and pairs it with the original
+build. To replace a saved starter before kickoff, use **Team patching**.
+
+On earlier RSCTF versions, use the challenge editor to register the archive.
 
 ## Prepare the starter ZIP
 
