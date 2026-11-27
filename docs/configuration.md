@@ -21,6 +21,10 @@ The category directory must be one of `Misc`, `Crypto`, `Pwn`, `Web`,
 `Reverse`, `Blockchain`, `Forensics`, `Hardware`, `Mobile`, `PPC`, `AI`,
 `Pentest`, or `OSINT`.
 
+`Reverse` is the RSCTF name for reversing. Category folders containing only
+`.gitkeep` are ready for new packages. Repository Bindings imports a package
+when you add its `challenge.yaml`.
+
 ## Event manifest
 
 Event settings seed a game only on its first import. A rescan preserves later

@@ -8,13 +8,20 @@ under `docs/`; AI-agent guidance lives under `.agents/` and `AGENTS.md`.
 > Every flag committed here is public demo data. Replace it before using a copied
 > challenge in a real event, and assume the old value remains visible in Git history.
 
-## Fast path
+## Start a new challenge repository
 
-From the repository root:
+1. Use **Use this template → Create a new repository** when that button is available.
+   You can also extract the [starter ZIP](https://github.com/dimasma0305/rsctf-challenges/archive/refs/heads/main.zip)
+   and commit its contents (including dotfiles) into a new repository. Choose **Private**
+   for an unreleased event.
+2. Edit [`.gzevent`](.gzevent) with your event title and schedule. Keep it hidden while you test.
+3. Pick a [challenge example](docs/getting-started.md#choose-an-example) and copy it into a
+   category under [Jeopardy](challenges/Jeopardy), [A&D](challenges/AD), or [KoTH](challenges/Koth).
+   Remove the demo packages you do not want to import.
+4. Run the checks below, then connect the new repository in
+   [RSCTF Repository Bindings](docs/importing.md).
 
 ```sh
-make help
-make list
 make validate
 make matrix
 ```
